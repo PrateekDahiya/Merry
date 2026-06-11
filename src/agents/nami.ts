@@ -1,33 +1,70 @@
 import { BaseAgent } from './base.js';
 import { ContextResponse, TaskEnvelope } from '../types/messages.js';
 import { RepositoryContextSearch, RepositorySearchOptions } from '../context/repository-search.js';
+import { GitHubContextSearch, GitHubSearchOptions } from '../context/github-search.js';
+
+export interface NamiOptions extends RepositorySearchOptions {
+  github?: GitHubSearchOptions;
+}
 
 /**
  * Nami - Context Retrieval Agent
  *
- * Responsibilities:
- * - Search the repository, docs, and config files
- * - Search indexed local sources
- * - Return structured context with source paths
- * - Provide relevant snippets and recommendations
- * - Support easy extension with new context sources
+ * Aggregates context from all configured sources in parallel:
+ *  - Local knowledge directory (always active)
+ *  - GitHub code + repo search (when GITHUB_TOKEN + GITHUB_USERNAME are set)
  *
- * Phase 4 implements repository, docs, and config search over local text files.
+ * Results are merged and ranked by relevance before being passed to specialists.
  */
 export class NamiAgent extends BaseAgent {
-  private readonly search: RepositoryContextSearch;
+  private readonly localSearch: RepositoryContextSearch;
+  private readonly githubSearch?: GitHubContextSearch;
 
-  constructor(options: RepositorySearchOptions = {}) {
+  constructor(options: NamiOptions = {}) {
     super('nami-primary', 'nami');
-    this.search = new RepositoryContextSearch(options);
+    this.localSearch = new RepositoryContextSearch(options);
+    if (options.github) {
+      this.githubSearch = new GitHubContextSearch(options.github);
+    }
   }
 
   protected async doWork(task: TaskEnvelope): Promise<ContextResponse> {
-    this.logger.info({ taskId: task.taskId }, 'Nami retrieving context');
+    const sources: string[] = ['local'];
+    if (this.githubSearch) sources.push('github');
 
-    const context = await this.search.search(task.taskId, task.userRequest);
+    this.logger.info({ taskId: task.taskId, sources }, 'Nami retrieving context');
+
+    const [localResult, githubResult] = await Promise.all([
+      this.localSearch.search(task.taskId, task.userRequest),
+      this.githubSearch
+        ? this.githubSearch.search(task.taskId, task.userRequest)
+        : Promise.resolve(null),
+    ]);
+
+    const allFindings = [
+      ...localResult.findings,
+      ...(githubResult?.findings ?? []),
+    ]
+      .sort((a, b) => b.relevance - a.relevance)
+      .slice(0, 10);
+
+    const summaryParts = [localResult.summary];
+    if (githubResult?.summary) summaryParts.push(githubResult.summary);
+
+    const context: ContextResponse = {
+      taskId: task.taskId,
+      findings: allFindings,
+      summary: summaryParts.filter(Boolean).join(' '),
+      timestamp: new Date(),
+    };
+
     this.logger.info(
-      { taskId: task.taskId, findingCount: context.findings.length },
+      {
+        taskId: task.taskId,
+        localCount: localResult.findings.length,
+        githubCount: githubResult?.findings.length ?? 0,
+        totalCount: allFindings.length,
+      },
       'Nami context retrieval completed'
     );
 

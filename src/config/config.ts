@@ -43,6 +43,11 @@ const configSchema = z.object({
   contextSearchDepth: z.number().positive().default(3),
   contextMaxResults: z.number().positive().default(10),
 
+  // GitHub context source
+  githubToken: z.string().optional(),
+  githubUsername: z.string().optional(),
+  githubMaxResults: z.number().positive().default(5),
+
   // Health monitoring (Tony)
   tonyCheckIntervalMs: z.number().positive().default(5000),
   tonyStuckThresholdMs: z.number().positive().default(60000),
@@ -96,6 +101,9 @@ export function loadConfig(): Config {
     agentRetryDelayMs: env.AGENT_RETRY_DELAY_MS ? parseInt(env.AGENT_RETRY_DELAY_MS) : undefined,
     contextRootDir: env.CONTEXT_ROOT_DIR,
     contextSearchDepth: env.CONTEXT_SEARCH_DEPTH ? parseInt(env.CONTEXT_SEARCH_DEPTH) : undefined,
+    githubToken: env.GITHUB_TOKEN,
+    githubUsername: env.GITHUB_USERNAME,
+    githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
     contextMaxResults: env.CONTEXT_MAX_RESULTS ? parseInt(env.CONTEXT_MAX_RESULTS) : undefined,
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,
     tonyStuckThresholdMs: env.TONY_STUCK_THRESHOLD_MS ? parseInt(env.TONY_STUCK_THRESHOLD_MS) : undefined,

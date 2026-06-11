@@ -53,6 +53,13 @@ async function main() {
           rootDir: config.contextRootDir,
           maxDepth: config.contextSearchDepth,
           maxResults: config.contextMaxResults,
+          github: config.githubToken && config.githubUsername
+            ? {
+                token: config.githubToken,
+                username: config.githubUsername,
+                maxResults: config.githubMaxResults,
+              }
+            : undefined,
         }),
     });
 
