@@ -40,7 +40,7 @@ export class TelegramNotifier {
   }
 }
 
-export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony';
+export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook';
 
 export interface ConversationStep {
   agent: AgentVoice;
@@ -57,6 +57,18 @@ export type AgentEvent =
   | 'approval_needed';
 
 const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
+  brook: {
+    working: [
+      "🎵 Brook reading the web... Yohoho! 💀",
+      "🎵 Fetching news from the seas of the internet! 💀",
+    ],
+    done: [
+      "🎵 Brook has returned with findings! Yohoho! 💀",
+    ],
+    error: [
+      "🎵 The seas were rough! I could not retrieve the content! 💀",
+    ],
+  },
   jinbe: {
     working: [
       "🌊 Jinbe at the helm — message is in safe hands.",

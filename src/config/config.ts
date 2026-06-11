@@ -58,6 +58,15 @@ const configSchema = z.object({
   githubUsername: z.string().optional(),
   githubMaxResults: z.number().positive().default(5),
 
+  // Brook agent (news herald + Soul King)
+  brookEnabled: optionalBoolean.default(true),
+  brookOnepieceIntervalMs: z.number().positive().default(14_400_000),
+  brookAnimeIntervalMs:    z.number().positive().default(14_400_000),
+  brookMusicIntervalMs:    z.number().positive().default(21_600_000),
+  brookNewsIntervalMs:     z.number().positive().default(7_200_000),
+  brookSingIntervalMs:     z.number().positive().default(5_400_000),
+  brookMinDelayMs:         z.number().positive().default(900_000),    // 15 min
+
   // Proactive crew messaging
   crewChatEnabled: optionalBoolean.default(true),
   crewChatIntervalMs: z.number().positive().default(1_200_000),
@@ -138,6 +147,13 @@ export function loadConfig(): Config {
     githubToken: env.GITHUB_TOKEN,
     githubUsername: env.GITHUB_USERNAME,
     githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
+    brookEnabled:            env.BROOK_ENABLED,
+    brookOnepieceIntervalMs: env.BROOK_ONEPIECE_INTERVAL_MS ? parseInt(env.BROOK_ONEPIECE_INTERVAL_MS) : undefined,
+    brookAnimeIntervalMs:    env.BROOK_ANIME_INTERVAL_MS    ? parseInt(env.BROOK_ANIME_INTERVAL_MS)    : undefined,
+    brookMusicIntervalMs:    env.BROOK_MUSIC_INTERVAL_MS    ? parseInt(env.BROOK_MUSIC_INTERVAL_MS)    : undefined,
+    brookNewsIntervalMs:     env.BROOK_NEWS_INTERVAL_MS     ? parseInt(env.BROOK_NEWS_INTERVAL_MS)     : undefined,
+    brookSingIntervalMs:     env.BROOK_SING_INTERVAL_MS     ? parseInt(env.BROOK_SING_INTERVAL_MS)     : undefined,
+    brookMinDelayMs:         env.BROOK_MIN_DELAY_MS         ? parseInt(env.BROOK_MIN_DELAY_MS)         : undefined,
     crewChatEnabled: env.CREW_CHAT_ENABLED,
     crewChatIntervalMs: env.CREW_CHAT_INTERVAL_MS ? parseInt(env.CREW_CHAT_INTERVAL_MS) : undefined,
     crewChatMinDelayMs: env.CREW_CHAT_MIN_DELAY_MS ? parseInt(env.CREW_CHAT_MIN_DELAY_MS) : undefined,

@@ -23,6 +23,7 @@ const MORNING_COFFEE: ConversationScript = [
   { agent: 'robin', delayMs: 4500, text: "📖 Chamomile, please. I've been reading since five. The archives don't close." },
   { agent: 'sanji', delayMs: 3000, text: "🍳 Coming right up. Zoro — nobody is impressed." },
   { agent: 'zoro',  delayMs: 2500, text: "⚔️ I impressed myself. That's enough." },
+  { agent: 'brook', delayMs: 4000, text: "🎵 Good morning, everyone! Shall I play something cheerful? I've been practising since dawn — I cannot sleep, being a skeleton! YOHOHO! 💀" },
 ];
 
 const COLD_WEATHER: ConversationScript = [
@@ -49,6 +50,7 @@ const EVENING_WIND_DOWN: ConversationScript = [
   { agent: 'zoro',  delayMs: 3500, text: "⚔️ Three sessions. Lost count of the reps. Good day." },
   { agent: 'nami',  delayMs: 4000, text: "🗺️ Three new routes mapped and logged. I track everything." },
   { agent: 'ace',   delayMs: 5000, text: "🔥 Ace: crew check done. All present. Rest well — tomorrow we go again." },
+  { agent: 'brook', delayMs: 4000, text: "🎵 ♪ And thus another day ends in song... Yohoho! Sleep well, everyone! I myself cannot sleep, but I shall hum softly! 💀" },
 ];
 
 const WEEKEND_BANTER: ConversationScript = [

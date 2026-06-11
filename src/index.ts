@@ -17,6 +17,7 @@ import { createLlmClient } from './llm/client.js';
 import { notifier } from './telegram/notifier.js';
 import { WeatherService } from './services/weather.js';
 import { CrewScheduler } from './crew/scheduler.js';
+import { BrookAgent } from './agents/brook.js';
 
 const logger = getLogger();
 
@@ -142,17 +143,32 @@ async function main() {
           inactiveThresholdMs: config.crewChatInactiveThresholdMs,
         });
         crewScheduler.start();
-
-        const origShutdown = process.listeners('SIGINT')[0];
-        void origShutdown;
         process.on('SIGINT', () => crewScheduler.stop());
         process.on('SIGTERM', () => crewScheduler.stop());
-        logger.info({ intervalMs: config.crewChatIntervalMs }, 'CrewScheduler started — crew will chat spontaneously');
+        logger.info({ intervalMs: config.crewChatIntervalMs }, 'CrewScheduler started');
+      }
+
+      if (config.brookEnabled) {
+        const brook = new BrookAgent({
+          store,
+          llm,
+          knowledgeDir: config.zoroKnowledgeDir,
+          onepieceIntervalMs: config.brookOnepieceIntervalMs,
+          animeIntervalMs:    config.brookAnimeIntervalMs,
+          musicIntervalMs:    config.brookMusicIntervalMs,
+          newsIntervalMs:     config.brookNewsIntervalMs,
+          singIntervalMs:     config.brookSingIntervalMs,
+          minDelayMs:         config.brookMinDelayMs,
+        });
+        brook.start();
+        process.on('SIGINT', () => brook.stop());
+        process.on('SIGTERM', () => brook.stop());
+        logger.info('Brook started — Yohoho! 💀');
       }
     }
 
     logger.info(
-      { version: '0.4.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro'] },
+      { version: '0.5.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook'] },
       'All components initialized. System ready.'
     );
 
