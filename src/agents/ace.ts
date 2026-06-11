@@ -86,6 +86,7 @@ export class AceAgent extends BaseAgent {
       context: {
         ...task.context,
         nami: contextResult.result,
+        respondAs: routing.respondAs ?? undefined,
       },
       constraints: {
         ...task.constraints,

@@ -18,6 +18,7 @@ import { notifier } from './telegram/notifier.js';
 import { WeatherService } from './services/weather.js';
 import { CrewScheduler } from './crew/scheduler.js';
 import { BrookAgent } from './agents/brook.js';
+import { FrankyAgent } from './agents/franky.js';
 
 const logger = getLogger();
 
@@ -127,6 +128,11 @@ async function main() {
       const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
       notifier.setClient(telegramClient);
 
+      // Warn if no admin chat IDs — proactive messages won't fire until user messages first
+      if (config.adminChatIds.length === 0) {
+        logger.warn('ADMIN_CHAT_IDS is not set. Proactive messages (Brook, Franky, CrewScheduler) will only reach chats that have messaged the bot first. Set ADMIN_CHAT_IDS=<your_telegram_chat_id> to receive messages immediately on startup.');
+      }
+
       // Register admin chat IDs so proactive messages work before the user sends anything
       if (config.adminChatIds.length > 0) {
         for (const chatId of config.adminChatIds) {
@@ -180,10 +186,24 @@ async function main() {
         process.on('SIGTERM', () => brook.stop());
         logger.info('Brook started — Yohoho! 💀');
       }
+
+      if (config.frankyChatEnabled) {
+        const franky = new FrankyAgent({
+          store,
+          llm,
+          weather: weatherService,
+          intervalMs: config.frankyChatIntervalMs,
+          minDelayMs: config.frankyChatMinDelayMs,
+        });
+        franky.start();
+        process.on('SIGINT', () => franky.stop());
+        process.on('SIGTERM', () => franky.stop());
+        logger.info('Franky started — SUPER! 🔧');
+      }
     }
 
     logger.info(
-      { version: '0.5.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook'] },
+      { version: '0.6.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook', 'franky'] },
       'All components initialized. System ready.'
     );
 

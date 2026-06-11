@@ -58,6 +58,11 @@ const configSchema = z.object({
   githubUsername: z.string().optional(),
   githubMaxResults: z.number().positive().default(5),
 
+  // Franky agent (inter-agent conversation director)
+  frankyChatEnabled: optionalBoolean.default(true),
+  frankyChatIntervalMs: z.number().positive().default(2_700_000),   // 45 min
+  frankyChatMinDelayMs: z.number().positive().default(1_800_000),   // 30 min
+
   // Brook agent (news herald + Soul King)
   brookEnabled: optionalBoolean.default(true),
   brookOnepieceIntervalMs: z.number().positive().default(14_400_000),
@@ -155,6 +160,9 @@ export function loadConfig(): Config {
     githubToken: env.GITHUB_TOKEN,
     githubUsername: env.GITHUB_USERNAME,
     githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
+    frankyChatEnabled:    env.FRANKY_CHAT_ENABLED,
+    frankyChatIntervalMs: env.FRANKY_CHAT_INTERVAL_MS ? parseInt(env.FRANKY_CHAT_INTERVAL_MS) : undefined,
+    frankyChatMinDelayMs: env.FRANKY_CHAT_MIN_DELAY_MS ? parseInt(env.FRANKY_CHAT_MIN_DELAY_MS) : undefined,
     brookEnabled:            env.BROOK_ENABLED,
     brookOnepieceIntervalMs: env.BROOK_ONEPIECE_INTERVAL_MS ? parseInt(env.BROOK_ONEPIECE_INTERVAL_MS) : undefined,
     brookAnimeIntervalMs:    env.BROOK_ANIME_INTERVAL_MS    ? parseInt(env.BROOK_ANIME_INTERVAL_MS)    : undefined,

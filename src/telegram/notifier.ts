@@ -40,7 +40,7 @@ export class TelegramNotifier {
   }
 }
 
-export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook';
+export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook' | 'franky';
 
 export interface ConversationStep {
   agent: AgentVoice;
@@ -57,6 +57,18 @@ export type AgentEvent =
   | 'approval_needed';
 
 const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
+  franky: {
+    working: [
+      "🔧 SUPER! Franky is building a conversation! 💪",
+      "🔧 FRANKY POSE! The crew is about to chat!",
+    ],
+    done: [
+      "🔧 SUPER conversation assembled! That's what being SUPER is all about!",
+    ],
+    error: [
+      "🔧 The blueprint had an error! Not SUPER! But I'll fix it!",
+    ],
+  },
   brook: {
     working: [
       "🎵 Brook reading the web... Yohoho! 💀",

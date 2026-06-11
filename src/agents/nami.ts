@@ -127,6 +127,8 @@ const GREETING_WORDS = new Set([
   'morning', 'evening', 'afternoon', 'night', 'good',
   'bye', 'goodbye', 'later', 'ciao', 'cheers',
   'there', 'all', 'everyone', 'guys', 'folks', 'crew', 'team',
+  // One Piece expressions
+  'yohoho', 'yohohoho', 'nakama', 'super',
 ]);
 
 function isCasualPhrase(request: string): boolean {

@@ -120,11 +120,13 @@ export class BrookAgent extends BaseAgent {
     if (this.active) return;
     this.active = true;
 
-    this.startLoop(this.intervals.onepiece, () => this.onePieceLoop());
-    this.startLoop(this.intervals.anime,    () => this.animeLoop());
-    this.startLoop(this.intervals.music,    () => this.musicLoop());
-    this.startLoop(this.intervals.news,     () => this.newsLoop());
-    this.startLoop(this.intervals.sing,     () => this.singLoop());
+    // Stagger loops so they don't all fire at the same second.
+    // Sing loop fires first (10s), then others every 8s after that.
+    this.startLoop(this.intervals.sing,     () => this.singLoop(),     10_000);
+    this.startLoop(this.intervals.news,     () => this.newsLoop(),     18_000);
+    this.startLoop(this.intervals.onepiece, () => this.onePieceLoop(), 26_000);
+    this.startLoop(this.intervals.anime,    () => this.animeLoop(),    34_000);
+    this.startLoop(this.intervals.music,    () => this.musicLoop(),    42_000);
 
     logger.info(
       { intervals: this.intervals, minDelayMs: this.minDelayMs },
@@ -145,7 +147,7 @@ export class BrookAgent extends BaseAgent {
 
   // ── Loop management ─────────────────────────────────────────────────────────
 
-  private startLoop(intervalMs: number, handler: () => Promise<void>): void {
+  private startLoop(intervalMs: number, handler: () => Promise<void>, firstFireMs = 60_000): void {
     const fire = () => {
       if (!this.active) return;
       void handler().catch(err => {
@@ -153,14 +155,13 @@ export class BrookAgent extends BaseAgent {
       }).finally(() => {
         if (this.active) {
           const jitter = (Math.random() - 0.5) * 0.5 * intervalMs;
-          const next = Math.max(30_000, intervalMs + jitter);
+          const next = Math.max(60_000, intervalMs + jitter);
           this.timers.push(setTimeout(fire, next));
         }
       });
     };
-    // First fire is also jittered so all 5 loops don't fire simultaneously
-    const initialDelay = Math.random() * intervalMs;
-    this.timers.push(setTimeout(fire, Math.max(30_000, initialDelay)));
+    // First fire uses the provided short delay, subsequent fires use the full interval
+    this.timers.push(setTimeout(fire, firstFireMs));
   }
 
   // ── Content loops ───────────────────────────────────────────────────────────

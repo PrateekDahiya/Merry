@@ -46,9 +46,12 @@ export class CrewScheduler {
   start(): void {
     if (this.active) return;
     this.active = true;
-    this.scheduleNext();
+    // First crew conversation fires quickly (30s) — subsequent cycles use normal interval
+    this.timer = setTimeout(() => {
+      void this.run().finally(() => this.scheduleNext());
+    }, 30_000);
     logger.info(
-      { intervalMs: this.intervalMs, minDelayMs: this.minDelayMs },
+      { intervalMs: this.intervalMs, minDelayMs: this.minDelayMs, firstFireMs: 30_000 },
       'CrewScheduler started — the crew will chat spontaneously'
     );
   }

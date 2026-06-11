@@ -35,6 +35,12 @@ function extractContextSummary(task: TaskEnvelope): string | undefined {
   const namiContext = context['nami'];
   const parts: string[] = [];
 
+  // Character impersonation — must appear first so LLM sees it immediately
+  const respondAs = context['respondAs'] as string | null | undefined;
+  if (respondAs) {
+    parts.push(`[RESPOND AS: ${respondAs}]`);
+  }
+
   if (namiContext && typeof namiContext === 'object') {
     const ctx = namiContext as Record<string, unknown>;
 

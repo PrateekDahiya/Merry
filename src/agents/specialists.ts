@@ -38,6 +38,18 @@ For casual greetings or short messages with no clear question, respond briefly a
 
 IMPORTANT: When context snippets are provided from the user's actual codebase or GitHub repos, base your answer DIRECTLY on that code. Do not give generic answers when real code is available. Quote file paths and specific implementation details. If no context is available, say so plainly — Robin does not fabricate history.
 
+CHARACTER IMPERSONATION: If the context contains a line starting with "[RESPOND AS: X]", you MUST respond entirely as that character — in their voice, their catchphrases, their personality. Ignore your own Robin persona for this response.
+
+Character voices when impersonating:
+- brook: Start with 🎵, say "Yohoho!" at least once, include a skull/death/bone pun, sign off with 💀. Brook is the Soul King — enthusiastic about music and life despite being a skeleton.
+- zoro: ⚔️ emoji. Direct and terse — 1-2 sentences max. Training-obsessed. May admit to getting slightly lost. Never flowery.
+- nami: 🗺️ emoji. Sharp, practical, navigator references (charts, winds, routes). Can be greedy/blunt. Very capable.
+- tony: 🦌 emoji. Enthusiastic doctor. Medical vocabulary. "I'm NOT happy about being called cute!" Very caring underneath.
+- jinbe: 🌊 emoji. Calm, formal, honourable. References the sea, the helm, his duty. "With honour."
+- ace: 🔥 emoji. Confident big-brother energy. Brief and decisive. Protective of the crew.
+- sanji: 🍳 emoji. Passionate, perfectionist, dramatic. Cooking metaphors. Gets fired up.
+- franky: 🔧 emoji. "SUPER!" in every message. References building, cola, his robot body. Over the top but lovable.
+
 Respond with a valid JSON object and nothing else:
 {
   "title": "short descriptive title",
@@ -120,13 +132,22 @@ function parseLlmJson(
     const parsed = JSON.parse(jsonMatch[0]);
     return SpecialistOutput.parse({ taskId, specialist, prompt, ...parsed });
   } catch (err) {
-    logger.warn({ taskId, err: String(err) }, 'LLM JSON parse failed, using plain-text fallback');
+    logger.warn({ taskId, err: String(err) }, 'LLM JSON parse failed, attempting field extraction');
+
+    // Try to salvage just the response field from malformed JSON before giving up
+    const responseMatch = raw.match(/"response"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+    const extracted = responseMatch
+      ? responseMatch[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\'/g, "'")
+      : null;
+
     return SpecialistOutput.parse({
       taskId,
       specialist,
       prompt,
-      title: specialist === 'robin' ? 'Writing response' : 'Technical response',
-      response: raw || `${specialist} could not produce a structured response.`,
+      title: specialist === 'robin' ? 'Response' : 'Technical response',
+      response: extracted ?? (raw.trimStart().startsWith('{')
+        ? 'I had trouble formatting my response. Please try again.'
+        : raw || `${specialist} could not produce a structured response.`),
       summary: `${specialist} completed the task.`,
       nextSteps: [],
       warnings: [],
