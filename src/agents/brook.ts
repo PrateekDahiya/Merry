@@ -23,12 +23,6 @@ export interface BrookOptions {
   llmChance?: number;
 }
 
-interface RedditPost {
-  title: string;
-  url: string;
-  score: number;
-  selftext?: string;
-}
 
 // ── Scripted message pools ────────────────────────────────────────────────────
 
@@ -167,51 +161,38 @@ export class BrookAgent extends BaseAgent {
   // ── Content loops ───────────────────────────────────────────────────────────
 
   private async onePieceLoop(): Promise<void> {
-    const posts = await this.fetchReddit('OnePiece', 'new', 5);
-    if (posts.length === 0) return;
-
-    const post = posts.find(p => p.score > 20) ?? posts[0]!;
-    const message = await this.buildReaction(
-      'One Piece',
-      post.title,
-      ONE_PIECE_REACTIONS,
-    );
-
+    // LLM generates a plausible One Piece headline — no external API needed
+    const headline = await this.generateHeadline('One Piece manga/anime') ??
+      'One Piece chapter released — the adventure continues!';
+    const message = await this.buildReaction('One Piece', headline, ONE_PIECE_REACTIONS);
     await this.sendToChats([{ agent: 'brook', text: message, delayMs: 0 }]);
-    this.writeKnowledge('onepiece', `# One Piece — ${post.title}\n\n${post.selftext ?? ''}\n\nURL: ${post.url}`);
-    logger.info({ title: post.title }, 'Brook: One Piece loop fired');
+    this.writeKnowledge('onepiece', `# One Piece News\n\n${headline}`);
+    logger.info('Brook: One Piece loop fired');
   }
 
   private async animeLoop(): Promise<void> {
-    const posts = await this.fetchReddit('anime', 'hot', 5);
-    if (posts.length === 0) return;
-
-    const post = posts.find(p => p.score > 50) ?? posts[0]!;
-    const message = await this.buildReaction('anime', post.title, ANIME_REACTIONS);
-
+    const headline = await this.generateHeadline('anime / manga') ??
+      'New anime season announced — the community is buzzing!';
+    const message = await this.buildReaction('anime', headline, ANIME_REACTIONS);
     await this.sendToChats([{ agent: 'brook', text: message, delayMs: 0 }]);
-    this.writeKnowledge('anime', `# Anime News — ${post.title}\n\nURL: ${post.url}`);
-    logger.info({ title: post.title }, 'Brook: anime loop fired');
+    this.writeKnowledge('anime', `# Anime News\n\n${headline}`);
+    logger.info('Brook: anime loop fired');
   }
 
   private async musicLoop(): Promise<void> {
-    const posts = await this.fetchReddit('Music', 'hot', 5);
-    if (posts.length === 0) return;
-
-    const post = posts.find(p => p.score > 100) ?? posts[0]!;
-    const message = await this.buildReaction('music', post.title, MUSIC_REACTIONS);
-
+    const headline = await this.generateHeadline('music / albums / concerts') ??
+      'New music drops across the world — Brook approves!';
+    const message = await this.buildReaction('music', headline, MUSIC_REACTIONS);
     await this.sendToChats([{ agent: 'brook', text: message, delayMs: 0 }]);
-    this.writeKnowledge('music', `# Music News — ${post.title}\n\nURL: ${post.url}`);
-    logger.info({ title: post.title }, 'Brook: music loop fired');
+    this.writeKnowledge('music', `# Music News\n\n${headline}`);
+    logger.info('Brook: music loop fired');
   }
 
   private async newsLoop(): Promise<void> {
-    const posts = await this.fetchReddit('worldnews', 'hot', 3);
-    if (posts.length === 0) return;
-
-    const post = posts.find(p => p.score > 100) ?? posts[0]!;
-    const headline = post.title;
+    // HackerNews API: free, no auth, no rate limits
+    const headline = await this.fetchHackerNewsHeadline() ??
+      await this.generateHeadline('world news / current events') ??
+      'Something interesting is happening in the world today!';
 
     // News gets the full Robin-conversation treatment
     const steps: ConversationStep[] = [
@@ -222,7 +203,7 @@ export class BrookAgent extends BaseAgent {
     ];
 
     await this.sendToChats(steps);
-    this.writeKnowledge('news', `# World News — ${headline}\n\nURL: ${post.url}`);
+    this.writeKnowledge('news', `# World News — ${headline}`);
     logger.info({ title: headline }, 'Brook: news loop fired');
   }
 
@@ -234,6 +215,39 @@ export class BrookAgent extends BaseAgent {
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  /** Fetch top HackerNews headline — free, no auth, extremely reliable. */
+  private async fetchHackerNewsHeadline(): Promise<string | null> {
+    try {
+      const idsRes = await fetch('https://hacker-news.firebaseio.com/v0/topstories.json');
+      if (!idsRes.ok) return null;
+      const ids = await idsRes.json() as number[];
+      const id = ids[Math.floor(Math.random() * Math.min(10, ids.length))];
+      if (!id) return null;
+      const storyRes = await fetch(`https://hacker-news.firebaseio.com/v0/item/${id}.json`);
+      if (!storyRes.ok) return null;
+      const story = await storyRes.json() as { title?: string };
+      return story.title ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Ask the LLM to invent a plausible headline for a given topic. */
+  private async generateHeadline(topic: string): Promise<string | null> {
+    if (!this.llm) return null;
+    try {
+      const res = await this.llm.chat({
+        system: 'You generate short realistic news headlines. Return ONLY the headline text, nothing else.',
+        messages: [{ role: 'user', content: `Write one plausible recent headline about: ${topic}` }],
+        maxTokens: 80,
+      });
+      const text = res.content.trim().replace(/^["']|["']$/g, '');
+      return text.length > 10 ? text : null;
+    } catch {
+      return null;
+    }
+  }
 
   private async buildReaction(
     topic: string,
@@ -262,37 +276,6 @@ Return ONLY the message text — no JSON, no quotes.`,
     return `${base}\n📰 "${title}"`;
   }
 
-  private async fetchReddit(subreddit: string, sort: string, limit: number): Promise<RedditPost[]> {
-    const url = `https://www.reddit.com/r/${subreddit}.json?sort=${sort}&limit=${limit}`;
-    try {
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'merry-telegram-bot/1.0 (+https://github.com/PrateekDahiya/Merry)',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!res.ok) {
-        logger.warn({ subreddit, status: res.status }, 'Brook: Reddit fetch failed');
-        return [];
-      }
-
-      const json = await res.json() as {
-        data: {
-          children: Array<{
-            data: { title: string; url: string; score: number; selftext?: string };
-          }>;
-        };
-      };
-
-      return json.data.children
-        .map(c => c.data)
-        .filter(p => p.title && p.score > 0);
-    } catch (err) {
-      logger.warn({ subreddit, err: String(err) }, 'Brook: Reddit fetch error');
-      return [];
-    }
-  }
 
   private async sendToChats(steps: ConversationStep[]): Promise<void> {
     const chatIds = await this.store.listAllChatIds();

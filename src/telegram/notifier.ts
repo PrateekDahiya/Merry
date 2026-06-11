@@ -56,8 +56,11 @@ const AGENT_LABELS: Record<AgentVoice, string> = {
 };
 
 function labelMessage(agent: AgentVoice, text: string): string {
+  // Use inline format: "*🔥 Ace:* message text" — no newline, no double-naming
   const label = AGENT_LABELS[agent];
-  return `*${label}:*\n${text}`;
+  // Strip any leading "AgentName: " the message might already include
+  const clean = text.replace(/^[🔥🌊🗺️📖🍳⚔️🦌🎵🔧🍖]\s*\w+:\s*/u, '').trimStart();
+  return `*${label}:* ${clean}`;
 }
 
 export interface ConversationStep {
