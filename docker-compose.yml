@@ -13,6 +13,9 @@ services:
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       # Ollama (local LLM — for main LLM or Zoro)
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # Note: if your .env has OLLAMA_BASE_URL=http://localhost:11434, Docker
+      # will use that — localhost inside a container is NOT your host machine.
+      # Change it to http://host.docker.internal:11434 in your .env.
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
       # Zoro-specific LLM override
       - ZORO_LLM_PROVIDER=${ZORO_LLM_PROVIDER}

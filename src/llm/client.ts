@@ -213,8 +213,12 @@ export function createLlmClient(options: LlmClientOptions): LlmClient {
 }
 
 function detectProvider(options: LlmClientOptions): LlmProvider {
-  if (options.ollamaBaseUrl) return 'ollama';
+  // Cloud providers take priority when API keys are present.
+  // Ollama is the fallback of last resort — having ollamaBaseUrl set should
+  // never override an explicit cloud key (e.g. localhost:11434 in .env should
+  // not hijack Robin when GROQ_API_KEY is also set).
   if (options.groqApiKey) return 'groq';
   if (options.anthropicApiKey) return 'anthropic';
+  if (options.ollamaBaseUrl) return 'ollama';
   return 'mock';
 }
