@@ -26,8 +26,8 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
-# Default knowledge base — override by mounting a volume at /app/knowledge
-COPY knowledge ./knowledge
+# knowledge/ is provided by the merry_knowledge Docker volume at runtime.
+# Zoro initialises the directory structure on first start.
 
 EXPOSE 3000
 

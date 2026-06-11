@@ -48,6 +48,11 @@ const configSchema = z.object({
   githubUsername: z.string().optional(),
   githubMaxResults: z.number().positive().default(5),
 
+  // Zoro knowledge builder
+  zoroEnabled: optionalBoolean.default(true),
+  zoroIndexIntervalMs: z.number().positive().default(30_000),
+  zoroKnowledgeDir: z.string().default('./knowledge'),
+
   // Health monitoring (Tony)
   tonyCheckIntervalMs: z.number().positive().default(5000),
   tonyStuckThresholdMs: z.number().positive().default(60000),
@@ -104,6 +109,9 @@ export function loadConfig(): Config {
     githubToken: env.GITHUB_TOKEN,
     githubUsername: env.GITHUB_USERNAME,
     githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
+    zoroEnabled: env.ZORO_ENABLED,
+    zoroIndexIntervalMs: env.ZORO_INDEX_INTERVAL_MS ? parseInt(env.ZORO_INDEX_INTERVAL_MS) : undefined,
+    zoroKnowledgeDir: env.ZORO_KNOWLEDGE_DIR,
     contextMaxResults: env.CONTEXT_MAX_RESULTS ? parseInt(env.CONTEXT_MAX_RESULTS) : undefined,
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,
     tonyStuckThresholdMs: env.TONY_STUCK_THRESHOLD_MS ? parseInt(env.TONY_STUCK_THRESHOLD_MS) : undefined,

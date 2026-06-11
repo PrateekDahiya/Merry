@@ -14,17 +14,22 @@ services:
       # Runtime
       - NODE_ENV=production
       - LOG_LEVEL=${LOG_LEVEL:-info}
+      # Persistence (task store)
       - PERSISTENCE_TYPE=file
       - DB_PATH=/app/data/store.json
       - AGENT_TIMEOUT_MS=${AGENT_TIMEOUT_MS:-60000}
-      # Context search — mount your docs/project at /app/knowledge
-      - CONTEXT_ROOT_DIR=${CONTEXT_ROOT_DIR:-/app/knowledge}
-      - CONTEXT_SEARCH_DEPTH=${CONTEXT_SEARCH_DEPTH:-5}
-      - CONTEXT_MAX_RESULTS=${CONTEXT_MAX_RESULTS:-10}
-      # GitHub — search code across all your repos
+      # GitHub
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_USERNAME=${GITHUB_USERNAME}
       - GITHUB_MAX_RESULTS=${GITHUB_MAX_RESULTS:-5}
+      # Zoro knowledge builder
+      - ZORO_ENABLED=${ZORO_ENABLED:-true}
+      - ZORO_INDEX_INTERVAL_MS=${ZORO_INDEX_INTERVAL_MS:-30000}
+      - ZORO_KNOWLEDGE_DIR=/app/knowledge
+      # Nami context search (reads from the same knowledge volume)
+      - CONTEXT_ROOT_DIR=/app/knowledge
+      - CONTEXT_SEARCH_DEPTH=${CONTEXT_SEARCH_DEPTH:-5}
+      - CONTEXT_MAX_RESULTS=${CONTEXT_MAX_RESULTS:-10}
       # Tony
       - TONY_CHECK_INTERVAL_MS=${TONY_CHECK_INTERVAL_MS:-10000}
       - TONY_STUCK_THRESHOLD_MS=${TONY_STUCK_THRESHOLD_MS:-120000}
@@ -34,11 +39,11 @@ services:
       - USE_MOCK_AGENTS=false
       - USE_MOCK_TELEGRAM=false
     volumes:
+      # Task + result persistence
       - merry_data:/app/data
-      # Mount your project docs/knowledge here:
-      # - ./knowledge:/app/knowledge
-      # Or point to any folder on your machine:
-      # - /path/to/your/project:/app/knowledge
+      # Knowledge base — persists across restarts, shared between Zoro (write) and Nami (read)
+      - merry_knowledge:/app/knowledge
 
 volumes:
   merry_data:
+  merry_knowledge:

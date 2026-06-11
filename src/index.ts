@@ -8,6 +8,7 @@ import { createStore } from './persistence/factory.js';
 import { TomAgent } from './agents/tom.js';
 import { AceAgent } from './agents/ace.js';
 import { TonyAgent } from './agents/tony.js';
+import { ZoroAgent } from './agents/zoro.js';
 import { NamiAgent } from './agents/nami.js';
 import { TonyMonitor } from './monitoring/monitor.js';
 import { Phase2AceDispatcher } from './orchestrator/phase2-dispatcher.js';
@@ -39,29 +40,41 @@ async function main() {
       : (config.llmProvider ?? (config.groqApiKey ? 'groq' : config.anthropicApiKey ? 'anthropic' : 'mock'));
     logger.info({ provider: activeProvider }, 'LLM client initialized');
 
+    const namiFactory = () => new NamiAgent({
+      rootDir: config.contextRootDir,
+      maxDepth: config.contextSearchDepth,
+      maxResults: config.contextMaxResults,
+      github: config.githubToken && config.githubUsername
+        ? { token: config.githubToken, username: config.githubUsername, maxResults: config.githubMaxResults }
+        : undefined,
+    });
+
     const tonyMonitor = new TonyMonitor(store, {
       checkIntervalMs: config.tonyCheckIntervalMs,
       stuckThresholdMs: config.tonyStuckThresholdMs,
     });
 
-    const ace = new AceAgent({
-      store,
-      llm,
-      monitor: tonyMonitor,
-      contextAgentFactory: () =>
-        new NamiAgent({
-          rootDir: config.contextRootDir,
-          maxDepth: config.contextSearchDepth,
-          maxResults: config.contextMaxResults,
-          github: config.githubToken && config.githubUsername
-            ? {
-                token: config.githubToken,
-                username: config.githubUsername,
-                maxResults: config.githubMaxResults,
-              }
-            : undefined,
-        }),
-    });
+    // Zoro — knowledge builder (needs GitHub creds)
+    let zoro: ZoroAgent | undefined;
+    if (config.zoroEnabled && config.githubToken && config.githubUsername) {
+      zoro = new ZoroAgent({
+        knowledgeDir: config.zoroKnowledgeDir,
+        githubToken: config.githubToken,
+        githubUsername: config.githubUsername,
+        llm,
+        indexIntervalMs: config.zoroIndexIntervalMs,
+      });
+      tonyMonitor.setZoroSource(zoro);
+      zoro.startIndexing();
+      logger.info(
+        { intervalMs: config.zoroIndexIntervalMs, knowledgeDir: config.zoroKnowledgeDir },
+        'Zoro knowledge builder started'
+      );
+    } else {
+      logger.info('Zoro disabled (needs GITHUB_TOKEN + GITHUB_USERNAME + ZORO_ENABLED=true)');
+    }
+
+    const ace = new AceAgent({ store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory });
 
     const tony = new TonyAgent({ store, monitor: tonyMonitor });
     await tony.onStart();
@@ -80,37 +93,13 @@ async function main() {
     }
 
     logger.info(
-      {
-        version: '0.2.0',
-        phase: '9 - Production Ready',
-        components: [
-          'config',
-          'logging',
-          'persistence',
-          'llm-client',
-          'agent-base',
-          'message-types',
-          'error-types',
-          'telegram-client',
-          'tom-agent',
-          'ace-agent',
-          'routing',
-          'telegram-ace-dispatcher',
-          'context-search',
-          'nami-agent',
-          'specialist-contract',
-          'robin-agent',
-          'sanji-agent',
-          'tony-agent',
-          'tony-monitor',
-          'file-store',
-        ],
-      },
+      { version: '0.3.0', components: ['ace', 'tom', 'robin', 'sanji', 'nami', 'tony', 'zoro'] },
       'All components initialized. System ready.'
     );
 
     const shutdown = async (signal: string) => {
       logger.info({ signal }, 'Shutting down gracefully...');
+      zoro?.stopIndexing();
       await tony.onStop();
       await tom?.stop(signal);
       const fileStore = store as { flush?: () => void };

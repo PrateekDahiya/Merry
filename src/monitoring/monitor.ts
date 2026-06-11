@@ -3,7 +3,7 @@ import { createChildLogger } from '../logging/logger.js';
 
 const logger = createChildLogger({ component: 'tony-monitor' });
 
-export type AlertType = 'stuck_task' | 'agent_unhealthy' | 'queue_overload' | 'repeated_failures';
+export type AlertType = 'stuck_task' | 'agent_unhealthy' | 'queue_overload' | 'repeated_failures' | 'zoro_stalled';
 export type AlertSeverity = 'warning' | 'critical';
 
 export interface MonitorAlert {
@@ -27,9 +27,14 @@ export interface AgentHeartbeat {
   message?: string;
 }
 
+export interface ZoroHealthSource {
+  getStats(): { pendingFiles: number; processedFiles: number; lastUpdated: string };
+}
+
 export interface MonitorConfig {
   checkIntervalMs: number;
   stuckThresholdMs: number;
+  zoroStalledThresholdMs?: number;
 }
 
 /**
@@ -49,10 +54,16 @@ export class TonyMonitor {
   private readonly agentHeartbeats: Map<string, AgentHeartbeat> = new Map();
   private running = false;
 
+  private zoroSource?: ZoroHealthSource;
+
   constructor(
     private readonly store: TaskStore & ResultStore,
     private readonly config: MonitorConfig,
   ) {}
+
+  setZoroSource(source: ZoroHealthSource): void {
+    this.zoroSource = source;
+  }
 
   start(): void {
     if (this.running) return;
@@ -104,6 +115,7 @@ export class TonyMonitor {
         this.checkStuckTasks(),
         this.checkAgentHeartbeats(),
         this.checkQueueLoad(),
+        this.checkZoroHealth(),
       ]);
     } catch (err) {
       logger.error({ err: String(err) }, 'Tony monitor check cycle failed');
@@ -178,6 +190,25 @@ export class TonyMonitor {
         severity: queueDepth > 100 ? 'critical' : 'warning',
         details: `Queue has ${queueDepth} unprocessed tasks (received + acknowledged).`,
         suggestedAction: 'Consider throttling inbound messages or adding more worker capacity.',
+        timestamp: new Date(),
+      });
+    }
+  }
+
+  private async checkZoroHealth(): Promise<void> {
+    if (!this.zoroSource) return;
+
+    const stats = this.zoroSource.getStats();
+    const stalledThresholdMs = this.config.zoroStalledThresholdMs ?? this.config.stuckThresholdMs * 5;
+    const silenceMs = Date.now() - new Date(stats.lastUpdated).getTime();
+
+    if (stats.pendingFiles > 0 && silenceMs > stalledThresholdMs) {
+      logger.warn({ pendingFiles: stats.pendingFiles, silenceMs }, 'Tony: Zoro appears stalled');
+      await this.emit({
+        type: 'zoro_stalled',
+        severity: 'warning',
+        details: `Zoro has ${stats.pendingFiles} pending files but hasn't processed anything in ${Math.round(silenceMs / 60000)}min. Processed so far: ${stats.processedFiles} files.`,
+        suggestedAction: 'Check Zoro logs. It may have hit a GitHub rate limit or crashed.',
         timestamp: new Date(),
       });
     }

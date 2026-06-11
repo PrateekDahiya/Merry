@@ -24,12 +24,13 @@ export type TaskState = z.infer<typeof TaskState>;
 
 // Agent types
 export const AgentType = z.enum([
-  'ace', // Master orchestrator
-  'tom', // Telegram interface
+  'ace',   // Master orchestrator
+  'tom',   // Telegram interface
   'robin', // Writing agent
   'sanji', // Coding agent
-  'nami', // Context agent
-  'tony', // Watchdog agent
+  'nami',  // Context agent
+  'tony',  // Watchdog agent
+  'zoro',  // Knowledge base builder
 ]);
 
 export type AgentType = z.infer<typeof AgentType>;

@@ -9,6 +9,7 @@ import { OrchestrationResult } from '../orchestrator/result.js';
 import { RoutingDecision, selectSpecialistAgent } from '../orchestrator/routing.js';
 import { TonyMonitor, MonitorAlert } from '../monitoring/monitor.js';
 import { LlmClient } from '../llm/client.js';
+import type { ZoroAgent } from './zoro.js';
 
 const DESTRUCTIVE_PATTERNS = [
   'delete all', 'drop table', 'drop database', 'truncate',
@@ -24,6 +25,7 @@ interface AceAgentOptions {
   specialistFactories?: Partial<Record<AgentType, AgentFactory>>;
   monitor?: TonyMonitor;
   llm?: LlmClient;
+  zoro?: ZoroAgent;
 }
 
 /**
@@ -38,11 +40,13 @@ export class AceAgent extends BaseAgent {
   private readonly contextAgentFactory: AgentFactory;
   private readonly specialistFactories: Partial<Record<AgentType, AgentFactory>>;
   private readonly monitor?: TonyMonitor;
+  private readonly zoro?: ZoroAgent;
 
   constructor(options: AceAgentOptions = {}) {
     super('ace-primary', 'ace');
     this.store = options.store ?? getStore();
     this.monitor = options.monitor;
+    this.zoro = options.zoro;
 
     this.contextAgentFactory = options.contextAgentFactory ?? (() => new NamiAgent());
     this.specialistFactories = options.specialistFactories ?? {
@@ -117,6 +121,11 @@ export class AceAgent extends BaseAgent {
       },
       'Ace orchestration completed'
     );
+
+    // Notify Zoro to record this interaction as knowledge (fire-and-forget)
+    if (this.zoro && specialistResult.success && !requiresApproval) {
+      void this.zoro.recordInteraction(task.userRequest, finalResponse);
+    }
 
     return {
       taskId: task.taskId,
