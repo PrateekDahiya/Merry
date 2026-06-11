@@ -2,7 +2,7 @@
 
 Production-ready Telegram bot architecture for receiving Telegram messages, routing work through Ace, delegating to specialist agents, and returning final responses through Tom.
 
-Current status: Phase 1 is complete. Later phases are represented as skeletons only and are not implemented yet.
+Current status: Phase 2 is complete. Telegram entrypoint behavior is implemented; later orchestration, context, specialist, monitoring, and durable persistence phases are still skeletons or boundaries.
 
 ## Agents
 
@@ -13,7 +13,7 @@ Current status: Phase 1 is complete. Later phases are represented as skeletons o
 - Nami: context agent for codebase, docs, config, and local context lookup.
 - Tony: watchdog agent for health checks, stuck task detection, and failure reporting.
 
-## Phase 1 Deliverables
+## Completed Deliverables
 
 Built and working:
 
@@ -29,10 +29,19 @@ Built and working:
 - Utility ID generation.
 - Module boundaries for future Telegram, orchestration, context, and monitoring services.
 - Unit tests for configuration, base agents, and persistence.
+- Tom Telegram entrypoint behavior.
+- Telegraf-backed Telegram client.
+- Incoming text message parsing into normalized Telegram metadata.
+- Immediate typing action plus `Checking...` acknowledgment.
+- Task envelope creation from Telegram messages.
+- In-memory message deduplication by chat/message ID.
+- Phase 2 Ace handoff boundary that stores and marks tasks as delegated.
+- Long response splitting for Telegram's message length limit.
+- Mockable Telegram client and dispatcher interfaces.
+- Unit tests for Telegram formatting and Tom's receive/ack/dispatch flow.
 
 Not implemented yet:
 
-- Live Telegram bot API integration.
 - Real Ace orchestration and dynamic specialist selection.
 - Nami repository search.
 - Robin/Sanji model-backed specialist execution.
@@ -64,6 +73,13 @@ Run the Phase 1 startup check:
 
 ```bash
 npm run dev
+```
+
+By default `.env.example` uses `USE_MOCK_TELEGRAM=true`, so startup initializes the app without connecting to Telegram. To run the live Telegram listener, set:
+
+```bash
+TELEGRAM_BOT_TOKEN=your_real_bot_token
+USE_MOCK_TELEGRAM=false
 ```
 
 Build:
@@ -124,13 +140,13 @@ src/
   context/         Phase 4 context service boundary
   logging/         Logger setup
   monitoring/      Phase 6 monitoring boundary
-  orchestrator/    Phase 3 orchestration boundary
+  orchestrator/    Phase 2 Ace handoff boundary; Phase 3 orchestration later
   persistence/     In-memory Phase 1 store
-  telegram/        Phase 2 Telegram adapter boundary
+  telegram/        Phase 2 Telegram adapter, formatting, and task factory
   types/           Shared schemas and error types
   utils/           Shared utilities
 tests/
-  unit/            Phase 1 unit tests
+  unit/            Phase 1 and Phase 2 unit tests
 ```
 
 ## Message Contracts
@@ -164,13 +180,24 @@ export class MyAgent extends BaseAgent {
 
 Future phases will add Ace registration and routing rules for specialist agents.
 
+## Example Telegram Flow
+
+With `USE_MOCK_TELEGRAM=false`, Tom starts a Telegraf polling listener:
+
+1. Telegram user sends a text message to the bot.
+2. Tom receives the update and normalizes chat ID, message ID, user ID, sender names, timestamp, text, and reply metadata.
+3. Tom sends a typing action and replies `Checking...`.
+4. Tom creates a `TaskEnvelope` assigned to Ace.
+5. The Phase 2 dispatcher persists the task and marks it `delegated`.
+6. Phase 3 will replace this boundary with real Ace orchestration and final response synthesis.
+
 ## Next Phase
 
-Phase 2 is Telegram entrypoint implementation:
+Phase 3 is orchestration implementation:
 
-- Implement Tom's Telegram adapter.
-- Connect to Telegram bot API.
-- Parse incoming Telegram messages.
-- Send immediate acknowledgment.
-- Create task envelopes and hand them to Ace.
-- Support mock mode for local development without live Telegram.
+- Implement Ace's routing logic.
+- Add task lifecycle transitions beyond the Phase 2 handoff.
+- Select specialist agents dynamically.
+- Ask Nami for context.
+- Delegate work and synthesize final responses.
+- Return final responses through Tom.
