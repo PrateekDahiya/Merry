@@ -230,8 +230,6 @@ Start with a # heading summarising the topic.`,
   }
 
   private async summarize(repo: string, filePath: string, content: string): Promise<string> {
-    const repoName = repo.split('/').pop() ?? repo;
-
     const userPrompt = [
       `Repository: ${repo}`,
       `File: ${filePath}`,
@@ -248,13 +246,7 @@ Start with a # heading summarising the topic.`,
       maxTokens: 1024,
     });
 
-    // Prepend source metadata so Nami's search can use it
-    return [
-      `<!-- source: github:${repo}/${filePath} -->`,
-      `<!-- repo: ${repoName} -->`,
-      ``,
-      res.content,
-    ].join('\n');
+    return res.content;
   }
 
   private async githubGet<T>(url: string): Promise<T> {

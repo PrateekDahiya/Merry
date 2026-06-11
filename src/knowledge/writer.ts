@@ -3,9 +3,21 @@ import { join } from 'path';
 
 /**
  * Writes context files into the knowledge directory.
- * Naming conventions:
- *   knowledge/repos/{repo-name}/{sanitized-file-path}.md  ← from GitHub files
- *   knowledge/interactions/{date}--{slug}.md              ← from user conversations
+ *
+ * File naming: every component of the original path is preserved, including
+ * the extension (converted to a suffix), so files across repos never collide:
+ *
+ *   src/index.ts        → src--index-ts.md
+ *   src/feed/index.ts   → src--feed--index-ts.md
+ *   index.js            → index-js.md          (NOT index.md)
+ *   README.md           → overview.md
+ *
+ * Each file starts with a plain-text metadata block that Nami can match:
+ *   # youtube-clone / src/index.ts
+ *   repo: youtube-clone | file: src/index.ts | github: PrateekDahiya/youtube-clone
+ *
+ * This guarantees Robin always knows exactly which repo and file a snippet
+ * came from, even when the same filename exists in many repos.
  */
 export class KnowledgeWriter {
   constructor(private readonly knowledgeDir: string) {
@@ -20,7 +32,10 @@ export class KnowledgeWriter {
 
     const fileName = sanitizePath(filePath) + '.md';
     const fullPath = join(dir, fileName);
-    writeFileSync(fullPath, content, 'utf-8');
+
+    // Prepend a searchable header so Nami can identify source by content
+    const header = buildHeader(repo, repoSlug, filePath);
+    writeFileSync(fullPath, `${header}\n\n${content}`, 'utf-8');
     return fullPath;
   }
 
@@ -37,16 +52,40 @@ export class KnowledgeWriter {
   }
 }
 
-function sanitizePath(filePath: string): string {
-  if (filePath === 'README.md' || filePath.toLowerCase() === 'readme.md') {
-    return 'overview';
-  }
+/**
+ * Converts a GitHub file path to a unique, readable filename stem.
+ *
+ * Rules:
+ *   - README.md / readme.md  → "overview"          (always the repo overview)
+ *   - Directory separators   → "--"                 (src/feed.ts → src--feed-ts)
+ *   - Extension dots         → "-"                  (feed.ts → feed-ts, NOT feed)
+ *   - Remaining special chars → "-"
+ *
+ * Result examples:
+ *   index.ts              → index-ts
+ *   index.js              → index-js
+ *   src/index.ts          → src--index-ts
+ *   api/routes/feed.ts    → api--routes--feed-ts
+ *   package.json          → package-json
+ */
+export function sanitizePath(filePath: string): string {
+  if (/^readme\.md$/i.test(filePath)) return 'overview';
+
   return filePath
-    .replace(/\//g, '--')      // src/feed.ts  →  src--feed.ts
-    .replace(/\.[^.]+$/, '')   // remove extension
-    .replace(/[^\w-]/g, '-')   // non-word chars → dash
-    .replace(/-+/g, '-')       // collapse multiple dashes
+    .replace(/\//g, '--')          // directory separator → double dash
+    .replace(/\./g, '-')           // dots (incl. extension) → dash (keeps lang suffix)
+    .replace(/[^\w-]/g, '-')       // any remaining non-word char → dash
+    .replace(/-{2,}(?!-)/g, match => match === '--' ? '--' : '-')  // collapse runs except intentional --
+    .replace(/^-+|-+$/g, '')       // trim leading/trailing dashes
     .toLowerCase();
+}
+
+function buildHeader(fullRepo: string, repoSlug: string, filePath: string): string {
+  return [
+    `# ${repoSlug} / ${filePath}`,
+    ``,
+    `repo: ${repoSlug} | file: ${filePath} | github: ${fullRepo}`,
+  ].join('\n');
 }
 
 function slugify(text: string): string {
