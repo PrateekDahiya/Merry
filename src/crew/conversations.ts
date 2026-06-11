@@ -98,8 +98,8 @@ export function selectScript(ctx: ConversationContext): ConversationScript {
 
   if (ctx.timeOfDay === 'morning') return MORNING_COFFEE;
   if (ctx.timeOfDay === 'evening') return EVENING_WIND_DOWN;
-  if (temp !== undefined && temp < 10) return COLD_WEATHER;
-  if (temp !== undefined && temp > 32) return HOT_WEATHER;
+  if (temp !== undefined && temp < 20) return COLD_WEATHER;
+  if (temp !== undefined && temp > 30) return HOT_WEATHER;
   if (ctx.dayPeriod === 'weekend') return WEEKEND_BANTER;
 
   const script = RANDOM_BANTER[banterIndex % RANDOM_BANTER.length]!;
