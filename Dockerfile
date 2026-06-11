@@ -26,6 +26,9 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/dist ./dist
 
+# Default knowledge base — override by mounting a volume at /app/knowledge
+COPY knowledge ./knowledge
+
 EXPOSE 3000
 
 CMD ["node", "dist/index.js"]

@@ -5,24 +5,38 @@ services:
     build: .
     restart: unless-stopped
     environment:
+      # Telegram
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      # LLM
+      - LLM_PROVIDER=${LLM_PROVIDER:-groq}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      # Runtime
       - NODE_ENV=production
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - PERSISTENCE_TYPE=file
       - DB_PATH=/app/data/store.json
       - AGENT_TIMEOUT_MS=${AGENT_TIMEOUT_MS:-60000}
-      - CONTEXT_SEARCH_DEPTH=${CONTEXT_SEARCH_DEPTH:-3}
+      # Context search — mount your docs/project at /app/knowledge
+      - CONTEXT_ROOT_DIR=${CONTEXT_ROOT_DIR:-/app/knowledge}
+      - CONTEXT_SEARCH_DEPTH=${CONTEXT_SEARCH_DEPTH:-5}
       - CONTEXT_MAX_RESULTS=${CONTEXT_MAX_RESULTS:-10}
+      # Tony
       - TONY_CHECK_INTERVAL_MS=${TONY_CHECK_INTERVAL_MS:-10000}
       - TONY_STUCK_THRESHOLD_MS=${TONY_STUCK_THRESHOLD_MS:-120000}
+      # Admin
       - ADMIN_USER_IDS=${ADMIN_USER_IDS:-}
       - ENABLE_AUDIT_LOGS=true
       - USE_MOCK_AGENTS=false
       - USE_MOCK_TELEGRAM=false
     volumes:
       - merry_data:/app/data
+      # Mount your project docs/knowledge here:
+      # - ./knowledge:/app/knowledge
+      # Or point to any folder on your machine:
+      # - /path/to/your/project:/app/knowledge
 
 volumes:
   merry_data:

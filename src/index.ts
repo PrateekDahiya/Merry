@@ -50,6 +50,7 @@ async function main() {
       monitor: tonyMonitor,
       contextAgentFactory: () =>
         new NamiAgent({
+          rootDir: config.contextRootDir,
           maxDepth: config.contextSearchDepth,
           maxResults: config.contextMaxResults,
         }),

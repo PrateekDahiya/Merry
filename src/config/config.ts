@@ -39,6 +39,7 @@ const configSchema = z.object({
   agentRetryDelayMs: z.number().positive().default(1000),
 
   // Context service
+  contextRootDir: z.string().optional(),
   contextSearchDepth: z.number().positive().default(3),
   contextMaxResults: z.number().positive().default(10),
 
@@ -93,6 +94,7 @@ export function loadConfig(): Config {
     agentTimeoutMs: env.AGENT_TIMEOUT_MS ? parseInt(env.AGENT_TIMEOUT_MS) : undefined,
     agentMaxRetries: env.AGENT_MAX_RETRIES ? parseInt(env.AGENT_MAX_RETRIES) : undefined,
     agentRetryDelayMs: env.AGENT_RETRY_DELAY_MS ? parseInt(env.AGENT_RETRY_DELAY_MS) : undefined,
+    contextRootDir: env.CONTEXT_ROOT_DIR,
     contextSearchDepth: env.CONTEXT_SEARCH_DEPTH ? parseInt(env.CONTEXT_SEARCH_DEPTH) : undefined,
     contextMaxResults: env.CONTEXT_MAX_RESULTS ? parseInt(env.CONTEXT_MAX_RESULTS) : undefined,
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,
