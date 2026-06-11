@@ -99,6 +99,14 @@ const configSchema = z.object({
   persistenceType: z.enum(['memory', 'file']).default('file'),
   dbPath: z.string().default('./data/store.json'),
 
+  // Admin chat IDs — these chats receive proactive messages without needing to message first
+  adminChatIds: z
+    .string()
+    .default('')
+    .transform(s =>
+      s.split(',').map(x => x.trim()).filter(Boolean)
+    ),
+
   // Admin
   adminUserIds: z
     .string()
@@ -175,6 +183,7 @@ export function loadConfig(): Config {
     taskPersistenceEnabled: env.TASK_PERSISTENCE_ENABLED,
     persistenceType: env.PERSISTENCE_TYPE as 'memory' | 'file' | undefined,
     dbPath: env.DB_PATH,
+    adminChatIds: env.ADMIN_CHAT_IDS,
     adminUserIds: env.ADMIN_USER_IDS,
     useMockAgents: env.USE_MOCK_AGENTS,
     useMockTelegram: env.USE_MOCK_TELEGRAM,

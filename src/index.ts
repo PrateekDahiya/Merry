@@ -126,6 +126,21 @@ async function main() {
     } else {
       const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
       notifier.setClient(telegramClient);
+
+      // Register admin chat IDs so proactive messages work before the user sends anything
+      if (config.adminChatIds.length > 0) {
+        for (const chatId of config.adminChatIds) {
+          const existing = (await store.getChatMetadata(chatId)) ?? {};
+          if (!existing['lastSeenAt']) {
+            await store.saveChatMetadata(chatId, {
+              ...existing,
+              chatId,
+              lastSeenAt: new Date().toISOString(),
+            });
+          }
+        }
+        logger.info({ count: config.adminChatIds.length }, 'Registered admin chat IDs for proactive messaging');
+      }
       jinbe = new JinbeAgent({
         client: telegramClient,
         dispatcher: new Phase2AceDispatcher(store, ace),

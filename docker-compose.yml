@@ -65,6 +65,8 @@ services:
       - TONY_STUCK_THRESHOLD_MS=${TONY_STUCK_THRESHOLD_MS:-120000}
       # Admin
       - ADMIN_USER_IDS=${ADMIN_USER_IDS:-}
+      # Chat IDs that receive proactive messages from startup (no first-message required)
+      - ADMIN_CHAT_IDS=${ADMIN_CHAT_IDS:-}
       - ENABLE_AUDIT_LOGS=true
       - USE_MOCK_AGENTS=false
       - USE_MOCK_TELEGRAM=false

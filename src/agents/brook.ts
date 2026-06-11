@@ -91,7 +91,6 @@ export class BrookAgent extends BaseAgent {
   private readonly llm?: LlmClient;
   private readonly knowledgeDir: string;
   private readonly minDelayMs: number;
-  private readonly inactiveThresholdMs: number;
   private readonly llmChance: number;
   private readonly intervals: {
     onepiece: number;
@@ -106,8 +105,7 @@ export class BrookAgent extends BaseAgent {
     this.store = options.store;
     this.llm = options.llm;
     this.knowledgeDir = options.knowledgeDir;
-    this.minDelayMs = options.minDelayMs ?? 1_200_000;           // 20 min
-    this.inactiveThresholdMs = options.inactiveThresholdMs ?? 172_800_000; // 48 h
+    this.minDelayMs = options.minDelayMs ?? 900_000;             // 15 min
     this.llmChance = options.llmChance ?? 0.3;
     this.intervals = {
       onepiece: options.onepieceIntervalMs ?? 14_400_000,
@@ -305,11 +303,9 @@ Return ONLY the message text — no JSON, no quotes.`,
       const meta = await this.store.getChatMetadata(chatId);
       if (!meta) continue;
 
-      const lastSeen  = meta['lastSeenAt']      ? new Date(meta['lastSeenAt'] as string).getTime()      : 0;
       const lastBrook = meta['lastBrookMessageAt'] ? new Date(meta['lastBrookMessageAt'] as string).getTime() : 0;
 
-      if (now - lastSeen  > this.inactiveThresholdMs) continue;  // chat gone cold
-      if (now - lastBrook < this.minDelayMs)           continue;  // too soon
+      if (now - lastBrook < this.minDelayMs) continue;  // too soon
 
       try {
         await notifier.sendSequence(Number(chatId), steps);
