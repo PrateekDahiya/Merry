@@ -62,12 +62,14 @@ async function main() {
         githubToken: config.githubToken,
         githubUsername: config.githubUsername,
         llm,
-        indexIntervalMs: config.zoroIndexIntervalMs,
+        workers: config.zoroWorkers,
+        workerIdleMs: config.zoroWorkerIdleMs,
+        discoveryIntervalMs: config.zoroDiscoveryIntervalMs,
       });
       tonyMonitor.setZoroSource(zoro);
       zoro.startIndexing();
       logger.info(
-        { intervalMs: config.zoroIndexIntervalMs, knowledgeDir: config.zoroKnowledgeDir },
+        { workers: config.zoroWorkers, knowledgeDir: config.zoroKnowledgeDir },
         'Zoro knowledge builder started'
       );
     } else {

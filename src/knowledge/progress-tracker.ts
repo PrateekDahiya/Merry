@@ -5,6 +5,7 @@ export interface RepoProgress {
   status: 'pending' | 'in_progress' | 'done';
   discoveredAt: string;
   pendingFiles: string[];
+  claimedFiles: string[];    // currently being processed by a worker
   processedFiles: string[];
   lastProcessedAt?: string;
 }
@@ -15,11 +16,21 @@ export interface ZoroProgress {
   repos: Record<string, RepoProgress>;
 }
 
-const EMPTY: ZoroProgress = { schemaVersion: 1, lastUpdated: new Date().toISOString(), repos: {} };
+const EMPTY: ZoroProgress = {
+  schemaVersion: 1,
+  lastUpdated: new Date().toISOString(),
+  repos: {},
+};
 
 /**
  * Tracks which repos and files Zoro has indexed.
  * Backed by knowledge/.zoro-progress.json — persists across restarts.
+ *
+ * claimNextWork() is synchronous so it's atomic under Node.js's event loop:
+ * two async workers calling it back-to-back will never get the same file.
+ *
+ * Crash recovery: any files left in claimedFiles on startup (worker crashed
+ * mid-file) are moved back to pendingFiles so they're retried.
  */
 export class ProgressTracker {
   private data: ZoroProgress;
@@ -28,14 +39,32 @@ export class ProgressTracker {
   constructor(knowledgeDir: string) {
     this.filePath = `${knowledgeDir}/.zoro-progress.json`;
     this.data = this.load();
+    this.recoverCrashedClaims();
   }
 
   private load(): ZoroProgress {
-    if (!existsSync(this.filePath)) return { ...EMPTY };
+    if (!existsSync(this.filePath)) return { ...EMPTY, repos: {} };
     try {
       return JSON.parse(readFileSync(this.filePath, 'utf-8')) as ZoroProgress;
     } catch {
-      return { ...EMPTY };
+      return { ...EMPTY, repos: {} };
+    }
+  }
+
+  /** Move any previously-claimed-but-never-completed files back to pending. */
+  private recoverCrashedClaims(): void {
+    let recovered = 0;
+    for (const progress of Object.values(this.data.repos)) {
+      if (!progress.claimedFiles) progress.claimedFiles = [];
+      if (progress.claimedFiles.length > 0) {
+        progress.pendingFiles = [...progress.claimedFiles, ...progress.pendingFiles];
+        recovered += progress.claimedFiles.length;
+        progress.claimedFiles = [];
+        progress.status = 'in_progress';
+      }
+    }
+    if (recovered > 0) {
+      this.save();
     }
   }
 
@@ -45,51 +74,61 @@ export class ProgressTracker {
     writeFileSync(this.filePath, JSON.stringify(this.data, null, 2));
   }
 
-  /** Register a repo with its full file list for processing. */
   registerRepo(repo: string, files: string[]): void {
-    if (this.data.repos[repo]) return;  // already registered
+    if (this.data.repos[repo]) return;
     this.data.repos[repo] = {
       status: 'pending',
       discoveredAt: new Date().toISOString(),
       pendingFiles: files,
+      claimedFiles: [],
       processedFiles: [],
     };
     this.save();
   }
 
-  /** Mark one file in a repo as processed. */
+  /**
+   * Atomically claims the next pending file for a worker.
+   * Synchronous — safe to call from multiple concurrent async workers.
+   */
+  claimNextWork(): { repo: string; filePath: string } | null {
+    for (const [repo, progress] of Object.entries(this.data.repos)) {
+      if (progress.pendingFiles.length === 0) continue;
+
+      const filePath = progress.pendingFiles.shift()!;  // remove from front
+      progress.claimedFiles.push(filePath);
+      progress.status = 'in_progress';
+      this.save();
+      return { repo, filePath };
+    }
+    return null;
+  }
+
   markFileDone(repo: string, filePath: string): void {
     const r = this.data.repos[repo];
     if (!r) return;
-    r.status = 'in_progress';
-    r.pendingFiles = r.pendingFiles.filter(f => f !== filePath);
+
+    r.claimedFiles = r.claimedFiles.filter(f => f !== filePath);
     if (!r.processedFiles.includes(filePath)) r.processedFiles.push(filePath);
     r.lastProcessedAt = new Date().toISOString();
-    if (r.pendingFiles.length === 0) r.status = 'done';
-    this.save();
-  }
 
-  /** Returns the next (repo, file) to process, or null if nothing pending. */
-  getNextWork(): { repo: string; filePath: string } | null {
-    for (const [repo, progress] of Object.entries(this.data.repos)) {
-      if (progress.pendingFiles.length > 0) {
-        return { repo, filePath: progress.pendingFiles[0]! };
-      }
+    if (r.pendingFiles.length === 0 && r.claimedFiles.length === 0) {
+      r.status = 'done';
     }
-    return null;
+    this.save();
   }
 
   isRepoKnown(repo: string): boolean {
     return repo in this.data.repos;
   }
 
-  getStats(): { totalRepos: number; doneRepos: number; pendingFiles: number; processedFiles: number; lastUpdated: string } {
+  getStats() {
     const repos = Object.values(this.data.repos);
     return {
       totalRepos: repos.length,
       doneRepos: repos.filter(r => r.status === 'done').length,
-      pendingFiles: repos.reduce((sum, r) => sum + r.pendingFiles.length, 0),
-      processedFiles: repos.reduce((sum, r) => sum + r.processedFiles.length, 0),
+      pendingFiles: repos.reduce((n, r) => n + r.pendingFiles.length, 0),
+      claimedFiles: repos.reduce((n, r) => n + r.claimedFiles.length, 0),
+      processedFiles: repos.reduce((n, r) => n + r.processedFiles.length, 0),
       lastUpdated: this.data.lastUpdated,
     };
   }

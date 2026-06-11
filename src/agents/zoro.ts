@@ -9,7 +9,9 @@ export interface ZoroOptions {
   githubToken: string;
   githubUsername: string;
   llm?: LlmClient;
-  indexIntervalMs?: number;
+  workers?: number;
+  workerIdleMs?: number;
+  discoveryIntervalMs?: number;
 }
 
 interface GitHubRepo {
@@ -24,36 +26,39 @@ interface GitHubTreeItem {
   size?: number;
 }
 
-const SKIP_PATHS = /node_modules|\.git|dist|coverage|\.next|\.cache|__pycache__|\.min\.|package-lock|yarn\.lock|\.png|\.jpg|\.jpeg|\.gif|\.ico|\.svg|\.woff|\.ttf|\.eot/i;
+const SKIP_PATHS = /node_modules|\.git|dist|coverage|\.next|\.cache|__pycache__|\.min\.|package-lock|yarn\.lock|pnpm-lock|\.png|\.jpg|\.jpeg|\.gif|\.ico|\.svg|\.woff|\.ttf|\.eot|\.map$/i;
 const PRIORITY_FILES = /readme\.md|package\.json|index\.(ts|js|py|go|rs|java)|app\.(ts|js|py)|main\.(ts|js|py|go|rs)/i;
 const MAX_FILE_BYTES = 60_000;
 
-const SYSTEM_PROMPT = `You are Zoro, a knowledge extraction specialist.
-Analyze the provided code or documentation file and produce a concise, searchable knowledge document.
+const SUMMARISE_SYSTEM = `You are Zoro, a knowledge extraction specialist.
+Analyse this code or documentation file and write a concise, searchable knowledge document.
 
 Rules:
-- Be specific: include function names, class names, algorithms, and data structures
+- Be specific: name functions, classes, algorithms, and data structures
 - Explain what the file does and how it fits into the project
 - Note key patterns, APIs, or design decisions
-- Max 400 words
-- Use markdown with clear headers
-- Do NOT reproduce raw code blocks; summarize and explain instead
+- Max 400 words, use markdown with clear ## headers
+- Do NOT reproduce raw code; summarise and explain instead
 
-Output a clean markdown document only.`;
+Output a clean markdown document only. No preamble or closing remarks.`;
 
 /**
- * Zoro — Knowledge Base Builder Agent
+ * Zoro — Knowledge Base Builder
  *
- * Runs a background loop that:
- *  1. Discovers all user GitHub repos and their file trees
- *  2. Picks one unprocessed file at a time
- *  3. Fetches the file content from GitHub
- *  4. Summarizes it with the LLM
- *  5. Writes the result to knowledge/repos/{repo}/{file}.md
- *  6. Updates the progress tracker (restartable)
+ * Runs two independent loops:
  *
- * Also records user interactions as knowledge files so the bot
- * improves from conversations over time.
+ *   Discovery loop  — lists GitHub repos periodically, registers new ones
+ *                     with their file trees in the progress tracker.
+ *
+ *   Worker loops    — N concurrent workers, each claiming one file at a time,
+ *                     fetching content, summarising with the LLM, and writing
+ *                     a named .md file to knowledge/repos/{repo}/{path}.md.
+ *                     Workers run as fast as the APIs allow with no artificial
+ *                     delay — adding more workers means more parallelism.
+ *
+ * Progress is saved after every claim and every completion so the system
+ * resumes exactly where it left off after a restart. Files that were claimed
+ * but never finished (crash mid-processing) are automatically re-queued.
  */
 export class ZoroAgent extends BaseAgent {
   private readonly llm: LlmClient;
@@ -61,8 +66,9 @@ export class ZoroAgent extends BaseAgent {
   private readonly writer: KnowledgeWriter;
   private readonly token: string;
   private readonly _username: string;
-  private readonly intervalMs: number;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly workers: number;
+  private readonly workerIdleMs: number;
+  private readonly discoveryIntervalMs: number;
   private active = false;
 
   constructor(options: ZoroOptions) {
@@ -70,80 +76,73 @@ export class ZoroAgent extends BaseAgent {
     this.llm = options.llm ?? new MockLlmClient();
     this.token = options.githubToken;
     this._username = options.githubUsername;
-    this.intervalMs = options.indexIntervalMs ?? 30_000;
+    this.workers = options.workers ?? 3;
+    this.workerIdleMs = options.workerIdleMs ?? 5_000;
+    this.discoveryIntervalMs = options.discoveryIntervalMs ?? 5 * 60 * 1000;
     this.tracker = new ProgressTracker(options.knowledgeDir);
     this.writer = new KnowledgeWriter(options.knowledgeDir);
   }
 
-  // ── Lifecycle ────────────────────────────────────────────────────────────
+  // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   startIndexing(): void {
     if (this.active) return;
     this.active = true;
-    this.logger.info({ intervalMs: this.intervalMs }, 'Zoro knowledge indexer started');
-    void this.tick();
+
+    void this.discoveryLoop();
+
+    for (let id = 0; id < this.workers; id++) {
+      void this.workerLoop(id);
+    }
+
+    this.logger.info(
+      { workers: this.workers, idleMs: this.workerIdleMs, discoveryIntervalMs: this.discoveryIntervalMs },
+      'Zoro started'
+    );
   }
 
   stopIndexing(): void {
     this.active = false;
-    if (this.timer) { clearTimeout(this.timer); this.timer = null; }
-    this.logger.info('Zoro knowledge indexer stopped');
+    this.logger.info('Zoro stopped');
   }
 
   getStats() {
-    return this.tracker.getStats();
+    return { ...this.tracker.getStats(), workers: this.workers };
   }
 
   // ── Interaction recording (called by Ace after each task) ─────────────────
 
   async recordInteraction(question: string, answer: string): Promise<void> {
     try {
-      const prompt = `User question: ${question}\n\nAnswer given:\n${answer}`;
-      const llmRes = await this.llm.chat({
+      const res = await this.llm.chat({
         system: `You are Zoro, a knowledge extraction specialist.
 Extract the key facts and technical details from this Q&A exchange.
-Write a concise markdown knowledge entry (max 200 words) that would help answer similar questions in the future.
-Start with a # heading summarising the topic.`,
-        messages: [{ role: 'user', content: prompt }],
+Write a concise markdown knowledge entry (max 200 words) useful for answering similar questions in future.
+Start with a # heading summarising the topic. Output markdown only.`,
+        messages: [{ role: 'user', content: `Question: ${question}\n\nAnswer:\n${answer}` }],
         maxTokens: 512,
       });
 
-      const filePath = this.writer.writeInteractionContext(question, llmRes.content);
+      const filePath = this.writer.writeInteractionContext(question, res.content);
       this.logger.info({ filePath }, 'Zoro wrote interaction context');
     } catch (err) {
       this.logger.warn({ err: String(err) }, 'Zoro: interaction recording failed');
     }
   }
 
-  // ── BaseAgent doWork (one-shot ad-hoc execution) ──────────────────────────
+  // ── BaseAgent (ad-hoc one-shot status query) ──────────────────────────────
 
   protected async doWork(_task: TaskEnvelope): Promise<unknown> {
-    const stats = this.tracker.getStats();
-    return { status: 'ok', stats, active: this.active };
+    return { status: 'ok', active: this.active, stats: this.getStats() };
   }
 
-  // ── Core indexing loop ────────────────────────────────────────────────────
+  // ── Discovery loop ────────────────────────────────────────────────────────
 
-  private async tick(): Promise<void> {
-    if (!this.active) return;
-
-    try {
-      // Discover new repos we haven't seen yet
+  private async discoveryLoop(): Promise<void> {
+    while (this.active) {
       await this.discoverRepos();
-
-      // Process the next pending file
-      const work = this.tracker.getNextWork();
-      if (work) {
-        await this.processFile(work.repo, work.filePath);
-      } else {
-        this.logger.debug('Zoro: knowledge base up to date, nothing pending');
-      }
-    } catch (err) {
-      this.logger.error({ err: String(err) }, 'Zoro tick failed');
+      await sleep(this.discoveryIntervalMs);
     }
-
-    // Schedule next tick
-    this.timer = setTimeout(() => void this.tick(), this.intervalMs);
   }
 
   private async discoverRepos(): Promise<void> {
@@ -153,50 +152,77 @@ Start with a # heading summarising the topic.`,
         `https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner`
       );
     } catch (err) {
-      this.logger.warn({ err: String(err) }, 'Zoro: could not list GitHub repos');
+      this.logger.warn({ err: String(err) }, 'Zoro: repo discovery failed');
       return;
     }
 
+    let newRepos = 0;
     for (const repo of repos) {
       if (this.tracker.isRepoKnown(repo.full_name)) continue;
-
       try {
         const files = await this.getFileTree(repo);
         this.tracker.registerRepo(repo.full_name, files);
+        newRepos++;
         this.logger.info(
           { repo: repo.full_name, owner: this._username, fileCount: files.length },
-          'Zoro discovered new repo'
+          'Zoro discovered repo'
         );
       } catch (err) {
         this.logger.warn({ repo: repo.full_name, err: String(err) }, 'Zoro: tree fetch failed');
       }
     }
+
+    if (newRepos > 0) {
+      this.logger.info({ newRepos, total: repos.length }, 'Zoro discovery complete');
+    }
   }
 
   private async getFileTree(repo: GitHubRepo): Promise<string[]> {
-    const tree = await this.githubGet<{ tree: GitHubTreeItem[] }>(
+    const tree = await this.githubGet<{ tree: GitHubTreeItem[]; truncated?: boolean }>(
       `https://api.github.com/repos/${repo.full_name}/git/trees/${repo.default_branch}?recursive=1`
     );
 
-    const files = tree.tree
+    if (tree.truncated) {
+      this.logger.warn({ repo: repo.full_name }, 'Zoro: tree truncated (very large repo), some files skipped');
+    }
+
+    const files = (tree.tree ?? [])
       .filter(item => item.type === 'blob')
       .filter(item => !SKIP_PATHS.test(item.path))
       .filter(item => (item.size ?? 0) < MAX_FILE_BYTES)
       .map(item => item.path);
 
-    // Sort: priority files (README, index, main) go first
+    // Priority files first so high-value context lands in knowledge base quickly
     files.sort((a, b) => {
-      const aPriority = PRIORITY_FILES.test(a) ? 0 : 1;
-      const bPriority = PRIORITY_FILES.test(b) ? 0 : 1;
-      return aPriority - bPriority;
+      const pa = PRIORITY_FILES.test(a) ? 0 : 1;
+      const pb = PRIORITY_FILES.test(b) ? 0 : 1;
+      return pa - pb;
     });
 
     return files;
   }
 
-  private async processFile(repo: string, filePath: string): Promise<void> {
-    this.logger.info({ repo, filePath }, 'Zoro processing file');
+  // ── Worker loop ───────────────────────────────────────────────────────────
 
+  private async workerLoop(workerId: number): Promise<void> {
+    this.logger.debug({ workerId }, 'Zoro worker started');
+
+    while (this.active) {
+      const work = this.tracker.claimNextWork();
+
+      if (!work) {
+        await sleep(this.workerIdleMs);
+        continue;
+      }
+
+      this.logger.debug({ workerId, repo: work.repo, file: work.filePath }, 'Worker claimed file');
+      await this.processFile(work.repo, work.filePath, workerId);
+    }
+
+    this.logger.debug({ workerId }, 'Zoro worker stopped');
+  }
+
+  private async processFile(repo: string, filePath: string, workerId = 0): Promise<void> {
     try {
       const content = await this.fetchFileContent(repo, filePath);
       if (!content) {
@@ -204,17 +230,18 @@ Start with a # heading summarising the topic.`,
         return;
       }
 
-      const summary = await this.summarize(repo, filePath, content);
+      const summary = await this.summarise(repo, filePath, content);
       const written = this.writer.writeRepoContext(repo, filePath, summary);
-      this.tracker.markFileDone(repo, filePath);
 
+      this.tracker.markFileDone(repo, filePath);
       const stats = this.tracker.getStats();
+
       this.logger.info(
-        { repo, filePath, written, pending: stats.pendingFiles, done: stats.processedFiles },
-        'Zoro file indexed'
+        { workerId, repo, filePath, written, pending: stats.pendingFiles, done: stats.processedFiles },
+        'Zoro indexed file'
       );
     } catch (err) {
-      this.logger.warn({ repo, filePath, err: String(err) }, 'Zoro: file processing failed, skipping');
+      this.logger.warn({ workerId, repo, filePath, err: String(err) }, 'Zoro: file failed, skipping');
       this.tracker.markFileDone(repo, filePath);
     }
   }
@@ -229,20 +256,20 @@ Start with a # heading summarising the topic.`,
     return decoded.substring(0, MAX_FILE_BYTES);
   }
 
-  private async summarize(repo: string, filePath: string, content: string): Promise<string> {
-    const userPrompt = [
-      `Repository: ${repo}`,
-      `File: ${filePath}`,
-      ``,
-      `Content:`,
-      `\`\`\``,
-      content.substring(0, 8000),
-      `\`\`\``,
-    ].join('\n');
-
+  private async summarise(repo: string, filePath: string, content: string): Promise<string> {
     const res = await this.llm.chat({
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userPrompt }],
+      system: SUMMARISE_SYSTEM,
+      messages: [{
+        role: 'user',
+        content: [
+          `Repository: ${repo}`,
+          `File: ${filePath}`,
+          ``,
+          '```',
+          content.substring(0, 8000),
+          '```',
+        ].join('\n'),
+      }],
       maxTokens: 1024,
     });
 
@@ -260,11 +287,19 @@ Start with a # heading summarising the topic.`,
 
     if (res.status === 403) {
       const remaining = res.headers.get('x-ratelimit-remaining');
-      if (remaining === '0') throw new Error('GitHub rate limit hit');
-      throw new Error('GitHub 403 Forbidden');
+      if (remaining === '0') {
+        const reset = res.headers.get('x-ratelimit-reset');
+        const resetAt = reset ? new Date(Number(reset) * 1000).toISOString() : 'unknown';
+        throw new Error(`GitHub rate limit hit. Resets at ${resetAt}`);
+      }
+      throw new Error('GitHub 403 Forbidden — check token has repo scope');
     }
 
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${await res.text()}`);
     return res.json() as Promise<T>;
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }

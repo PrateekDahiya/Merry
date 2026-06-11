@@ -50,7 +50,9 @@ const configSchema = z.object({
 
   // Zoro knowledge builder
   zoroEnabled: optionalBoolean.default(true),
-  zoroIndexIntervalMs: z.number().positive().default(30_000),
+  zoroWorkers: z.number().min(1).max(10).default(3),
+  zoroWorkerIdleMs: z.number().positive().default(5_000),
+  zoroDiscoveryIntervalMs: z.number().positive().default(300_000),
   zoroKnowledgeDir: z.string().default('./knowledge'),
 
   // Health monitoring (Tony)
@@ -110,7 +112,9 @@ export function loadConfig(): Config {
     githubUsername: env.GITHUB_USERNAME,
     githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
     zoroEnabled: env.ZORO_ENABLED,
-    zoroIndexIntervalMs: env.ZORO_INDEX_INTERVAL_MS ? parseInt(env.ZORO_INDEX_INTERVAL_MS) : undefined,
+    zoroWorkers: env.ZORO_WORKERS ? parseInt(env.ZORO_WORKERS) : undefined,
+    zoroWorkerIdleMs: env.ZORO_WORKER_IDLE_MS ? parseInt(env.ZORO_WORKER_IDLE_MS) : undefined,
+    zoroDiscoveryIntervalMs: env.ZORO_DISCOVERY_INTERVAL_MS ? parseInt(env.ZORO_DISCOVERY_INTERVAL_MS) : undefined,
     zoroKnowledgeDir: env.ZORO_KNOWLEDGE_DIR,
     contextMaxResults: env.CONTEXT_MAX_RESULTS ? parseInt(env.CONTEXT_MAX_RESULTS) : undefined,
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,

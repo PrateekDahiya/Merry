@@ -24,7 +24,9 @@ services:
       - GITHUB_MAX_RESULTS=${GITHUB_MAX_RESULTS:-5}
       # Zoro knowledge builder
       - ZORO_ENABLED=${ZORO_ENABLED:-true}
-      - ZORO_INDEX_INTERVAL_MS=${ZORO_INDEX_INTERVAL_MS:-30000}
+      - ZORO_WORKERS=${ZORO_WORKERS:-3}
+      - ZORO_WORKER_IDLE_MS=${ZORO_WORKER_IDLE_MS:-5000}
+      - ZORO_DISCOVERY_INTERVAL_MS=${ZORO_DISCOVERY_INTERVAL_MS:-300000}
       - ZORO_KNOWLEDGE_DIR=/app/knowledge
       # Nami context search (reads from the same knowledge volume)
       - CONTEXT_ROOT_DIR=/app/knowledge
