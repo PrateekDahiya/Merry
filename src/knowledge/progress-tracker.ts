@@ -7,6 +7,7 @@ export interface RepoProgress {
   pendingFiles: string[];
   claimedFiles: string[];    // currently being processed by a worker
   processedFiles: string[];
+  skippedFiles: string[];    // permanently skipped (403 forbidden, bad encoding, etc.)
   lastProcessedAt?: string;
 }
 
@@ -51,21 +52,21 @@ export class ProgressTracker {
     }
   }
 
-  /** Move any previously-claimed-but-never-completed files back to pending. */
+  /** Recover crashed claims and backfill skippedFiles on old progress files. */
   private recoverCrashedClaims(): void {
-    let recovered = 0;
+    let changed = false;
     for (const progress of Object.values(this.data.repos)) {
-      if (!progress.claimedFiles) progress.claimedFiles = [];
+      if (!progress.claimedFiles) { progress.claimedFiles = []; changed = true; }
+      if (!progress.skippedFiles) { progress.skippedFiles = []; changed = true; }
+
       if (progress.claimedFiles.length > 0) {
         progress.pendingFiles = [...progress.claimedFiles, ...progress.pendingFiles];
-        recovered += progress.claimedFiles.length;
         progress.claimedFiles = [];
         progress.status = 'in_progress';
+        changed = true;
       }
     }
-    if (recovered > 0) {
-      this.save();
-    }
+    if (changed) this.save();
   }
 
   private save(): void {
@@ -82,6 +83,7 @@ export class ProgressTracker {
       pendingFiles: files,
       claimedFiles: [],
       processedFiles: [],
+      skippedFiles: [],
     };
     this.save();
   }
@@ -118,6 +120,28 @@ export class ProgressTracker {
   }
 
   /**
+   * Permanently skip a file — moves it to skippedFiles and removes from all
+   * other lists. claimNextWork() will never return it again.
+   * Use for 403 Forbidden, binary files, or any other permanent failure.
+   */
+  skipFile(repo: string, filePath: string, reason?: string): void {
+    const r = this.data.repos[repo];
+    if (!r) return;
+
+    r.pendingFiles = r.pendingFiles.filter(f => f !== filePath);
+    r.claimedFiles = r.claimedFiles.filter(f => f !== filePath);
+    if (!r.skippedFiles.includes(filePath)) r.skippedFiles.push(filePath);
+
+    if (r.pendingFiles.length === 0 && r.claimedFiles.length === 0) {
+      r.status = 'done';
+    }
+    this.save();
+
+    // reason is used by callers for logging, stored here for reference
+    void reason;
+  }
+
+  /**
    * Release a file back to the pending queue (e.g. rate limit hit).
    * The file goes to the END of the queue so other files are processed first
    * while the rate limit resets.
@@ -145,6 +169,7 @@ export class ProgressTracker {
       pendingFiles: repos.reduce((n, r) => n + r.pendingFiles.length, 0),
       claimedFiles: repos.reduce((n, r) => n + r.claimedFiles.length, 0),
       processedFiles: repos.reduce((n, r) => n + r.processedFiles.length, 0),
+      skippedFiles: repos.reduce((n, r) => n + r.skippedFiles.length, 0),
       lastUpdated: this.data.lastUpdated,
     };
   }

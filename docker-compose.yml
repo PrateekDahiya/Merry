@@ -11,6 +11,13 @@ services:
       - GROQ_MODEL=${GROQ_MODEL:-llama-3.3-70b-versatile}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      # Ollama (local LLM — for main LLM or Zoro)
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
+      # Zoro-specific LLM override
+      - ZORO_LLM_PROVIDER=${ZORO_LLM_PROVIDER}
+      - ZORO_OLLAMA_BASE_URL=${ZORO_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      - ZORO_OLLAMA_MODEL=${ZORO_OLLAMA_MODEL:-llama3.2}
       # Runtime
       - NODE_ENV=production
       - LOG_LEVEL=${LOG_LEVEL:-info}

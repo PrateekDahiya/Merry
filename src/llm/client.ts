@@ -121,20 +121,87 @@ export class MockLlmClient implements LlmClient {
   }
 }
 
-export type LlmProvider = 'groq' | 'anthropic' | 'mock';
+/**
+ * Ollama — local LLM, no API key needed, no rate limits.
+ * Great for batch background tasks like Zoro's file summarisation.
+ *
+ * Default URL: http://localhost:11434
+ * In Docker, use http://host.docker.internal:11434 to reach the host machine.
+ */
+export class OllamaClient implements LlmClient {
+  private readonly baseUrl: string;
+  private readonly model: string;
 
-export function createLlmClient(options: {
+  constructor(baseUrl = 'http://localhost:11434', model = 'llama3.2') {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.model = model;
+  }
+
+  async chat(request: LlmRequest): Promise<LlmResponse> {
+    const messages: Array<{ role: string; content: string }> = [];
+
+    if (request.system) {
+      messages.push({ role: 'system', content: request.system });
+    }
+    for (const msg of request.messages) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+
+    const res = await fetch(`${this.baseUrl}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        stream: false,
+        options: { num_predict: request.maxTokens ?? 2048 },
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Ollama ${res.status}: ${body}`);
+    }
+
+    const data = await res.json() as {
+      message: { content: string };
+      prompt_eval_count?: number;
+      eval_count?: number;
+    };
+
+    return {
+      content: data.message?.content ?? '',
+      inputTokens: data.prompt_eval_count ?? 0,
+      outputTokens: data.eval_count ?? 0,
+    };
+  }
+}
+
+export type LlmProvider = 'groq' | 'anthropic' | 'ollama' | 'mock';
+
+export interface LlmClientOptions {
   provider?: LlmProvider;
+  // Groq
   groqApiKey?: string;
   groqModel?: string;
+  // Anthropic
   anthropicApiKey?: string;
   anthropicModel?: string;
+  // Ollama
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
+  // Fallback
   mock?: boolean;
-}): LlmClient {
+}
+
+export function createLlmClient(options: LlmClientOptions): LlmClient {
   if (options.mock) return new MockLlmClient();
 
   const provider = options.provider ?? detectProvider(options);
 
+  if (provider === 'ollama') {
+    return new OllamaClient(options.ollamaBaseUrl, options.ollamaModel);
+  }
   if (provider === 'groq' && options.groqApiKey) {
     return new GroqClient(options.groqApiKey, options.groqModel);
   }
@@ -145,7 +212,8 @@ export function createLlmClient(options: {
   return new MockLlmClient();
 }
 
-function detectProvider(options: { groqApiKey?: string; anthropicApiKey?: string }): LlmProvider {
+function detectProvider(options: LlmClientOptions): LlmProvider {
+  if (options.ollamaBaseUrl) return 'ollama';
   if (options.groqApiKey) return 'groq';
   if (options.anthropicApiKey) return 'anthropic';
   return 'mock';

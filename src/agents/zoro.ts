@@ -171,7 +171,18 @@ Start with a # heading summarising the topic. Output markdown only.`,
           'Zoro discovered repo'
         );
       } catch (err) {
-        this.logger.warn({ repo: repo.full_name, err: String(err) }, 'Zoro: tree fetch failed');
+        if (isForbiddenError(err)) {
+          // Register with empty file list so the discovery loop never retries this repo
+          this.tracker.registerRepo(repo.full_name, []);
+          this.logger.warn(
+            { repo: repo.full_name, err: String(err) },
+            'Zoro: 403 forbidden on repo tree — repo registered as inaccessible, will not retry'
+          );
+        } else if (isRateLimitError(err)) {
+          this.logger.warn({ repo: repo.full_name, err: String(err) }, 'Zoro: rate limit during discovery, will retry next cycle');
+        } else {
+          this.logger.warn({ repo: repo.full_name, err: String(err) }, 'Zoro: tree fetch failed');
+        }
       }
     }
 
@@ -246,19 +257,25 @@ Start with a # heading summarising the topic. Output markdown only.`,
       );
     } catch (err) {
       if (isRateLimitError(err)) {
-        // Release back to queue — will be retried after rate limit resets
         this.tracker.releaseWork(repo, filePath);
         this.logger.warn(
           { workerId, repo, filePath, sleepMs: this.rateLimitSleepMs, err: String(err) },
-          'Zoro: rate limit hit — file released, worker sleeping'
+          'Zoro: rate limit — file released, worker sleeping'
         );
         await sleep(this.rateLimitSleepMs);
+      } else if (isForbiddenError(err)) {
+        // 403 Forbidden — not a rate limit, permanent access denial
+        this.tracker.skipFile(repo, filePath, String(err));
+        this.logger.warn(
+          { workerId, repo, filePath, err: String(err) },
+          'Zoro: 403 forbidden — file permanently skipped'
+        );
       } else {
-        // Permanent error (bad encoding, missing file, parse error) — skip
+        // Other permanent error (bad encoding, parse error, etc.)
         this.tracker.markFileDone(repo, filePath);
         this.logger.warn(
           { workerId, repo, filePath, err: String(err) },
-          'Zoro: file failed permanently, skipping'
+          'Zoro: file failed, skipping'
         );
       }
     }
@@ -310,12 +327,27 @@ Start with a # heading summarising the topic. Output markdown only.`,
         const resetAt = reset ? new Date(Number(reset) * 1000).toISOString() : 'unknown';
         throw new Error(`GitHub rate limit hit. Resets at ${resetAt}`);
       }
-      throw new Error('GitHub 403 Forbidden — check token has repo scope');
+      // Try to read the body for a secondary rate-limit message
+      let body: { message?: string } = {};
+      try { body = await res.json() as { message?: string }; } catch { /* ignore */ }
+      const msg = body.message ?? '';
+
+      if (msg.toLowerCase().includes('rate limit') || msg.toLowerCase().includes('secondary')) {
+        throw new Error(`GitHub secondary rate limit: ${msg}`);
+      }
+      // Genuine 403 — permanent, no point retrying
+      throw new Error(`GITHUB_FORBIDDEN: ${msg || 'access denied'}`);
     }
 
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${await res.text()}`);
     return res.json() as Promise<T>;
   }
+}
+
+/** Returns true for GitHub 403 Forbidden — permanent, never retry. */
+function isForbiddenError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err));
+  return msg.startsWith('GITHUB_FORBIDDEN:');
 }
 
 /**

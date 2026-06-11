@@ -28,6 +28,7 @@ async function main() {
     const store = createStore(config.persistenceType, config.dbPath);
     logger.info({ persistenceType: config.persistenceType }, 'Persistence store initialized');
 
+    // Main LLM — used by Robin and Sanji for user-facing responses
     const llm = createLlmClient({
       mock: config.useMockAgents,
       provider: config.llmProvider,
@@ -35,10 +36,33 @@ async function main() {
       groqModel: config.groqModel,
       anthropicApiKey: config.anthropicApiKey,
       anthropicModel: config.anthropicModel,
+      ollamaBaseUrl: config.ollamaBaseUrl,
+      ollamaModel: config.ollamaModel,
     });
     const activeProvider = config.useMockAgents ? 'mock'
-      : (config.llmProvider ?? (config.groqApiKey ? 'groq' : config.anthropicApiKey ? 'anthropic' : 'mock'));
+      : (config.llmProvider ?? (config.ollamaBaseUrl ? 'ollama' : config.groqApiKey ? 'groq' : config.anthropicApiKey ? 'anthropic' : 'mock'));
     logger.info({ provider: activeProvider }, 'LLM client initialized');
+
+    // Zoro LLM — separate client for background knowledge indexing.
+    // Defaults to main LLM if ZORO_LLM_PROVIDER is not set.
+    // Typical setup: ZORO_LLM_PROVIDER=ollama (local, free, no rate limits)
+    //                LLM_PROVIDER=groq (fast, for user responses)
+    const zoroLlm = config.zoroLlmProvider
+      ? createLlmClient({
+          mock: config.useMockAgents,
+          provider: config.zoroLlmProvider,
+          groqApiKey: config.groqApiKey,
+          groqModel: config.groqModel,
+          anthropicApiKey: config.anthropicApiKey,
+          anthropicModel: config.anthropicModel,
+          ollamaBaseUrl: config.zoroOllamaBaseUrl ?? config.ollamaBaseUrl,
+          ollamaModel: config.zoroOllamaModel ?? config.ollamaModel,
+        })
+      : llm;
+
+    if (config.zoroLlmProvider) {
+      logger.info({ provider: config.zoroLlmProvider }, 'Zoro using separate LLM');
+    }
 
     const namiFactory = () => new NamiAgent({
       rootDir: config.contextRootDir,
@@ -61,7 +85,7 @@ async function main() {
         knowledgeDir: config.zoroKnowledgeDir,
         githubToken: config.githubToken,
         githubUsername: config.githubUsername,
-        llm,
+        llm: zoroLlm,
         workers: config.zoroWorkers,
         workerIdleMs: config.zoroWorkerIdleMs,
         discoveryIntervalMs: config.zoroDiscoveryIntervalMs,

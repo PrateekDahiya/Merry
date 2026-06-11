@@ -18,8 +18,8 @@ const configSchema = z.object({
   telegramBotToken: z.string().min(1),
   telegramWebhookSecret: z.string().default('webhook-secret'),
 
-  // LLM provider selection
-  llmProvider: z.enum(['groq', 'anthropic', 'mock']).optional(),
+  // LLM provider for Robin/Sanji (user-facing responses)
+  llmProvider: z.enum(['groq', 'anthropic', 'ollama', 'mock']).optional(),
 
   // Groq
   groqApiKey: z.string().optional(),
@@ -28,6 +28,16 @@ const configSchema = z.object({
   // Anthropic Claude (alternative)
   anthropicApiKey: z.string().optional(),
   anthropicModel: z.string().default('claude-sonnet-4-6'),
+
+  // Ollama (local — no API key, no rate limits)
+  ollamaBaseUrl: z.string().default('http://localhost:11434'),
+  ollamaModel: z.string().default('llama3.2'),
+
+  // Zoro-specific LLM (defaults to main LLM_PROVIDER if not set)
+  // Set ZORO_LLM_PROVIDER=ollama to use local Ollama just for indexing
+  zoroLlmProvider: z.enum(['groq', 'anthropic', 'ollama', 'mock']).optional(),
+  zoroOllamaBaseUrl: z.string().optional(),
+  zoroOllamaModel: z.string().optional(),
 
   // Logging
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
@@ -97,11 +107,16 @@ export function loadConfig(): Config {
   const rawConfig = {
     telegramBotToken: env.TELEGRAM_BOT_TOKEN,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
-    llmProvider: env.LLM_PROVIDER as 'groq' | 'anthropic' | 'mock' | undefined,
+    llmProvider: env.LLM_PROVIDER as 'groq' | 'anthropic' | 'ollama' | 'mock' | undefined,
     groqApiKey: env.GROQ_API_KEY,
     groqModel: env.GROQ_MODEL,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     anthropicModel: env.ANTHROPIC_MODEL,
+    ollamaBaseUrl: env.OLLAMA_BASE_URL,
+    ollamaModel: env.OLLAMA_MODEL,
+    zoroLlmProvider: env.ZORO_LLM_PROVIDER as 'groq' | 'anthropic' | 'ollama' | 'mock' | undefined,
+    zoroOllamaBaseUrl: env.ZORO_OLLAMA_BASE_URL,
+    zoroOllamaModel: env.ZORO_OLLAMA_MODEL,
     logLevel: env.LOG_LEVEL,
     nodeEnv: env.NODE_ENV,
     agentTimeoutMs: env.AGENT_TIMEOUT_MS ? parseInt(env.AGENT_TIMEOUT_MS) : undefined,
