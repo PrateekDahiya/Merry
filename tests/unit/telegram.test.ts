@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { TomAgent } from '../../src/agents/tom.js';
+import { JinbeAgent } from '../../src/agents/jinbe.js';
 import { splitTelegramMessage } from '../../src/telegram/formatting.js';
-import { TelegramClient, TomTaskDispatcher } from '../../src/telegram/types.js';
+import { TelegramClient, JinbeTaskDispatcher } from '../../src/telegram/types.js';
 import { TaskEnvelope, TelegramMessageMeta } from '../../src/types/messages.js';
 
 class MockTelegramClient implements TelegramClient {
@@ -34,7 +34,7 @@ class MockTelegramClient implements TelegramClient {
   }
 }
 
-class RecordingDispatcher implements TomTaskDispatcher {
+class RecordingDispatcher implements JinbeTaskDispatcher {
   readonly tasks: TaskEnvelope[] = [];
 
   constructor(private readonly response?: string) {}
@@ -68,13 +68,13 @@ describe('Telegram formatting', () => {
   });
 });
 
-describe('TomAgent', () => {
+describe('JinbeAgent', () => {
   it('acknowledges Telegram messages and dispatches task envelopes to Ace boundary', async () => {
     const client = new MockTelegramClient();
     const dispatcher = new RecordingDispatcher('Final response');
-    const tom = new TomAgent({ client, dispatcher });
+    const jinbe = new JinbeAgent({ client, dispatcher });
 
-    const task = await tom.handleIncomingMessage(createTelegramMessage());
+    const task = await jinbe.handleIncomingMessage(createTelegramMessage());
 
     expect(task).not.toBeNull();
     expect(task?.state).toBe('acknowledged');
@@ -96,11 +96,11 @@ describe('TomAgent', () => {
   it('ignores duplicate Telegram messages', async () => {
     const client = new MockTelegramClient();
     const dispatcher = new RecordingDispatcher();
-    const tom = new TomAgent({ client, dispatcher });
+    const jinbe = new JinbeAgent({ client, dispatcher });
     const message = createTelegramMessage();
 
-    await tom.handleIncomingMessage(message);
-    const duplicate = await tom.handleIncomingMessage(message);
+    await jinbe.handleIncomingMessage(message);
+    const duplicate = await jinbe.handleIncomingMessage(message);
 
     expect(duplicate).toBeNull();
     expect(dispatcher.tasks).toHaveLength(1);
@@ -109,9 +109,9 @@ describe('TomAgent', () => {
   it('registers the Telegram text handler when started', async () => {
     const client = new MockTelegramClient();
     const dispatcher = new RecordingDispatcher();
-    const tom = new TomAgent({ client, dispatcher });
+    const jinbe = new JinbeAgent({ client, dispatcher });
 
-    await tom.start();
+    await jinbe.start();
     await client.emit(createTelegramMessage({ messageId: 201 }));
 
     expect(dispatcher.tasks).toHaveLength(1);

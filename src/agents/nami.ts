@@ -2,10 +2,12 @@ import { BaseAgent } from './base.js';
 import { ContextResponse, TaskEnvelope } from '../types/messages.js';
 import { RepositoryContextSearch, RepositorySearchOptions } from '../context/repository-search.js';
 import { GitHubContextSearch, GitHubSearchOptions } from '../context/github-search.js';
+import { WeatherService } from '../services/weather.js';
 import { notifier } from '../telegram/notifier.js';
 
 export interface NamiOptions extends RepositorySearchOptions {
   github?: GitHubSearchOptions;
+  weather?: WeatherService;
 }
 
 /**
@@ -20,6 +22,7 @@ export interface NamiOptions extends RepositorySearchOptions {
 export class NamiAgent extends BaseAgent {
   private readonly localSearch: RepositoryContextSearch;
   private readonly githubSearch?: GitHubContextSearch;
+  private readonly weatherService?: WeatherService;
 
   constructor(options: NamiOptions = {}) {
     super('nami-primary', 'nami');
@@ -27,6 +30,7 @@ export class NamiAgent extends BaseAgent {
     if (options.github) {
       this.githubSearch = new GitHubContextSearch(options.github);
     }
+    this.weatherService = options.weather;
   }
 
   protected async doWork(task: TaskEnvelope): Promise<ContextResponse> {
@@ -46,6 +50,9 @@ export class NamiAgent extends BaseAgent {
       void notifier.send(Number(task.chatId), 'nami', 'fetching_context');
     }
 
+    // Fetch live weather when the query is weather-related
+    const weatherFinding = await this.fetchWeatherFinding(task.taskId, task.userRequest);
+
     const [localResult, githubResult] = await Promise.all([
       this.localSearch.search(task.taskId, task.userRequest),
       this.githubSearch
@@ -54,6 +61,7 @@ export class NamiAgent extends BaseAgent {
     ]);
 
     const allFindings = [
+      ...(weatherFinding ? [weatherFinding] : []),
       ...localResult.findings,
       ...(githubResult?.findings ?? []),
     ]
@@ -82,6 +90,35 @@ export class NamiAgent extends BaseAgent {
 
     return context;
   }
+
+  private async fetchWeatherFinding(
+    _taskId: string,
+    request: string,
+  ): Promise<ContextResponse['findings'][number] | null> {
+    if (!this.weatherService || !isWeatherQuery(request)) return null;
+    try {
+      const w = await this.weatherService.getCurrentWeather();
+      if (!w) return null;
+      return {
+        source: 'live:weather',
+        snippet: `Current weather: ${w.temperatureCelsius}°C, ${w.condition}. Wind: ${w.windSpeedKmh} km/h. (fetched ${w.fetchedAt.toISOString()})`,
+        relevance: 0.98,
+      };
+    } catch {
+      return null;
+    }
+  }
+}
+
+const WEATHER_TERMS = [
+  'weather', 'temperature', 'hot', 'cold', 'warm', 'cool', 'rain', 'raining',
+  'sunny', 'cloudy', 'snow', 'humid', 'outside', 'forecast', 'degrees',
+  'celsius', 'wind', 'windy', 'storm', 'thunder',
+];
+
+function isWeatherQuery(request: string): boolean {
+  const lower = request.toLowerCase();
+  return WEATHER_TERMS.some(t => lower.includes(t));
 }
 
 // Words that appear ONLY in greetings/pleasantries — not in real queries

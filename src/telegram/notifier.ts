@@ -40,7 +40,7 @@ export class TelegramNotifier {
   }
 }
 
-export type AgentVoice = 'ace' | 'tom' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony';
+export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony';
 
 export interface ConversationStep {
   agent: AgentVoice;
@@ -57,10 +57,10 @@ export type AgentEvent =
   | 'approval_needed';
 
 const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
-  tom: {
+  jinbe: {
     working: [
-      "⚓ Tom on it — message is in good hands.",
-      "⚓ Leave it to me. The crew's already been briefed.",
+      "🌊 Jinbe at the helm — message is in safe hands.",
+      "🌊 With honour, I'll see this through.",
     ],
   },
   ace: {

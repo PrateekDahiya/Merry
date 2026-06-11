@@ -5,7 +5,7 @@ dotenv.config();
 import { loadConfig } from './config/config.js';
 import { initializeLogger, getLogger } from './logging/logger.js';
 import { createStore } from './persistence/factory.js';
-import { TomAgent } from './agents/tom.js';
+import { JinbeAgent } from './agents/jinbe.js';
 import { AceAgent } from './agents/ace.js';
 import { TonyAgent } from './agents/tony.js';
 import { ZoroAgent } from './agents/zoro.js';
@@ -67,6 +67,13 @@ async function main() {
       logger.info({ provider: config.zoroLlmProvider }, 'Zoro using separate LLM');
     }
 
+    // Create WeatherService once — shared by Nami (for user queries) and CrewScheduler (for proactive chat)
+    const weatherService = new WeatherService({
+      latitude: config.userLatitude,
+      longitude: config.userLongitude,
+      city: config.userCity,
+    });
+
     const namiFactory = () => new NamiAgent({
       rootDir: config.contextRootDir,
       maxDepth: config.contextSearchDepth,
@@ -74,6 +81,7 @@ async function main() {
       github: config.githubToken && config.githubUsername
         ? { token: config.githubToken, username: config.githubUsername, maxResults: config.githubMaxResults }
         : undefined,
+      weather: weatherService,
     });
 
     const tonyMonitor = new TonyMonitor(store, {
@@ -110,29 +118,24 @@ async function main() {
     await tony.onStart();
     logger.info('Tony watchdog started');
 
-    let tom: TomAgent | null = null;
+    let jinbe: JinbeAgent | null = null;
 
     if (config.useMockTelegram) {
       logger.info('Mock Telegram mode enabled; live Telegram listener not started');
     } else {
       const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
       notifier.setClient(telegramClient);
-      tom = new TomAgent({
+      jinbe = new JinbeAgent({
         client: telegramClient,
         dispatcher: new Phase2AceDispatcher(store, ace),
         store,
       });
-      await tom.start();
+      await jinbe.start();
 
       if (config.crewChatEnabled) {
-        const weather = new WeatherService({
-          latitude: config.userLatitude,
-          longitude: config.userLongitude,
-          city: config.userCity,
-        });
         const crewScheduler = new CrewScheduler({
           store,
-          weather,
+          weather: weatherService,
           llm,
           intervalMs: config.crewChatIntervalMs,
           minDelayMs: config.crewChatMinDelayMs,
@@ -149,7 +152,7 @@ async function main() {
     }
 
     logger.info(
-      { version: '0.3.0', components: ['ace', 'tom', 'robin', 'sanji', 'nami', 'tony', 'zoro'] },
+      { version: '0.4.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro'] },
       'All components initialized. System ready.'
     );
 
@@ -157,7 +160,7 @@ async function main() {
       logger.info({ signal }, 'Shutting down gracefully...');
       zoro?.stopIndexing();
       await tony.onStop();
-      await tom?.stop(signal);
+      await jinbe?.stop(signal);
       const fileStore = store as { flush?: () => void };
       if (typeof fileStore.flush === 'function') fileStore.flush();
       process.exit(0);

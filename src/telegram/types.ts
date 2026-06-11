@@ -13,13 +13,13 @@ export interface TelegramClient {
   stop(reason?: string): Promise<void>;
 }
 
-export interface TomTaskDispatcher {
+export interface JinbeTaskDispatcher {
   dispatch(task: TaskEnvelope): Promise<string | void>;
 }
 
-export interface TomOptions {
+export interface JinbeOptions {
   client: TelegramClient;
-  dispatcher: TomTaskDispatcher;
+  dispatcher: JinbeTaskDispatcher;
   acknowledgmentText?: string;
   store?: ChatMetadataStore;
 }

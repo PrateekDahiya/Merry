@@ -2,36 +2,37 @@ import { BaseAgent } from './base.js';
 import { TaskEnvelope, TelegramMessageMeta } from '../types/messages.js';
 import { splitTelegramMessage } from '../telegram/formatting.js';
 import { createTaskFromTelegramMessage } from '../telegram/task-factory.js';
-import { TomOptions } from '../telegram/types.js';
+import { JinbeOptions } from '../telegram/types.js';
 
 /**
- * Tom — inspired by Tom-san, the legendary shipwright who built the Oro Jackson
- * and believed ships should bring smiles to people's faces.
+ * Jinbe — the Straw Hat Pirates' helmsman. Former Warlord of the Sea,
+ * fishman, and the steadiest hand on the wheel.
  *
- * Tom receives every incoming message, greets the user warmly, and immediately
- * gets it to the right hands. He is the front door of the crew.
+ * Jinbe receives every message with honour, acknowledges the user with
+ * calm dignity, and gets it to the right hands without hesitation.
+ * He is the crew's reliable front door.
  */
 
 const ACK_MESSAGES = [
-  '⚓ Leave it to me! Routing to Ace now...',
-  '🔧 Tom on it! The crew will handle this.',
-  '⛵ Got your message! Setting sail for an answer...',
-  '🌊 Received! Passing this to Ace right away.',
-  '🏴‍☠️ Aye! The Straw Hats are on the case.',
+  '🌊 Jinbe at the helm. Routing your message to Ace now.',
+  '🌊 With honour — this reaches the crew right away.',
+  '🌊 Steady course set. The crew will handle this.',
+  '🌊 Your message is received. Setting sail for an answer.',
+  '🌊 Consider it done. Jinbe never leaves a crewmate without guidance.',
 ];
 
-export class TomAgent extends BaseAgent {
+export class JinbeAgent extends BaseAgent {
   private readonly processedMessages = new Set<string>();
   private readonly acknowledgmentText: string;
   private ackIndex = 0;
 
-  constructor(private readonly options: TomOptions) {
-    super('tom-primary', 'tom');
+  constructor(private readonly options: JinbeOptions) {
+    super('jinbe-primary', 'jinbe');
     this.acknowledgmentText = options.acknowledgmentText ?? '';
   }
 
   protected async doWork(task: TaskEnvelope): Promise<unknown> {
-    this.logger.info({ taskId: task.taskId }, 'Tom sending Telegram response');
+    this.logger.info({ taskId: task.taskId }, 'Jinbe delivering message');
 
     const chatId = Number(task.chatId);
     const message = typeof task.context?.telegramResponse === 'string'
@@ -48,12 +49,12 @@ export class TomAgent extends BaseAgent {
     });
 
     await this.options.client.start();
-    this.logger.info('Tom Telegram listener started');
+    this.logger.info('Jinbe at the helm — Telegram listener started');
   }
 
   async stop(reason = 'shutdown'): Promise<void> {
     await this.options.client.stop(reason);
-    this.logger.info({ reason }, 'Tom Telegram listener stopped');
+    this.logger.info({ reason }, 'Jinbe stepping away from the helm — Telegram listener stopped');
   }
 
   async handleIncomingMessage(message: TelegramMessageMeta): Promise<TaskEnvelope | null> {

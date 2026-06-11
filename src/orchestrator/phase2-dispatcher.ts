@@ -1,16 +1,16 @@
 import { TaskEnvelope } from '../types/messages.js';
 import { ResultStore, TaskStore } from '../persistence/store.js';
 import { createChildLogger } from '../logging/logger.js';
-import { TomTaskDispatcher } from '../telegram/types.js';
+import { JinbeTaskDispatcher } from '../telegram/types.js';
 import { AceAgent } from '../agents/ace.js';
 import { isOrchestrationResult } from './result.js';
 
 /**
  * Telegram-to-Ace dispatch boundary.
- * Phase 3 routes incoming Tom tasks through Ace and returns the synthesized
+ * Phase 3 routes incoming Jinbe tasks through Ace and returns the synthesized
  * final response when orchestration succeeds.
  */
-export class Phase2AceDispatcher implements TomTaskDispatcher {
+export class Phase2AceDispatcher implements JinbeTaskDispatcher {
   private readonly logger = createChildLogger({ component: 'phase2-ace-dispatcher' });
 
   constructor(

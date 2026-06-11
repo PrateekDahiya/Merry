@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { TomAgent } from '../../src/agents/tom.js';
+import { JinbeAgent } from '../../src/agents/jinbe.js';
 import { AceAgent } from '../../src/agents/ace.js';
 import { BaseAgent } from '../../src/agents/base.js';
 import { MockLlmClient } from '../../src/llm/client.js';
 import { InMemoryStore } from '../../src/persistence/store.js';
 import { Phase2AceDispatcher } from '../../src/orchestrator/phase2-dispatcher.js';
-import { TelegramClient, TomTaskDispatcher } from '../../src/telegram/types.js';
+import { TelegramClient, JinbeTaskDispatcher } from '../../src/telegram/types.js';
 import { TelegramMessageMeta, TaskEnvelope } from '../../src/types/messages.js';
 import { ContextResponse } from '../../src/types/messages.js';
 
@@ -67,10 +67,10 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
     });
 
     const dispatcher = new Phase2AceDispatcher(store, ace);
-    const tom = new TomAgent({ client, dispatcher });
+    const jinbe = new JinbeAgent({ client, dispatcher });
 
     const msg = makeMessage('please write a short summary of our product');
-    await tom.handleIncomingMessage(msg);
+    await jinbe.handleIncomingMessage(msg);
 
     // Tom now cycles through One Piece ack messages — just check one was sent
     expect(client.sentMessages.length).toBeGreaterThanOrEqual(1);
@@ -90,12 +90,12 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
       contextAgentFactory: () => new StubContextAgent(),
     });
 
-    const tom = new TomAgent({
+    const jinbe = new JinbeAgent({
       client,
       dispatcher: new Phase2AceDispatcher(store, ace),
     });
 
-    await tom.handleIncomingMessage(makeMessage('debug this TypeScript compilation error in src/index.ts'));
+    await jinbe.handleIncomingMessage(makeMessage('debug this TypeScript compilation error in src/index.ts'));
 
     const finalReply = client.sentMessages.find(m => m.text.includes('Sanji response'));
     expect(finalReply).toBeDefined();
@@ -105,13 +105,13 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
     const store = new InMemoryStore();
     const client = new RecordingTelegramClient();
     const ace = new AceAgent({ store, llm: new MockLlmClient(), contextAgentFactory: () => new StubContextAgent() });
-    const tom = new TomAgent({ client, dispatcher: new Phase2AceDispatcher(store, ace) });
+    const jinbe = new JinbeAgent({ client, dispatcher: new Phase2AceDispatcher(store, ace) });
 
     const msg = makeMessage('write a haiku');
-    await tom.handleIncomingMessage(msg);
+    await jinbe.handleIncomingMessage(msg);
     const countAfterFirst = client.sentMessages.length;
 
-    await tom.handleIncomingMessage(msg); // duplicate — should be ignored
+    await jinbe.handleIncomingMessage(msg); // duplicate — should be ignored
     expect(client.sentMessages.length).toBe(countAfterFirst); // no new messages
   });
 
@@ -119,9 +119,9 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
     const store = new InMemoryStore();
     const client = new RecordingTelegramClient();
     const ace = new AceAgent({ store, llm: new MockLlmClient(), contextAgentFactory: () => new StubContextAgent() });
-    const tom = new TomAgent({ client, dispatcher: new Phase2AceDispatcher(store, ace) });
+    const jinbe = new JinbeAgent({ client, dispatcher: new Phase2AceDispatcher(store, ace) });
 
-    await tom.handleIncomingMessage(makeMessage('write something'));
+    await jinbe.handleIncomingMessage(makeMessage('write something'));
 
     expect(client.chatActions.some(a => a.action === 'typing')).toBe(true);
   });
