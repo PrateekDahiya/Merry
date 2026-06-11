@@ -46,7 +46,11 @@ export class TelegrafTelegramClient implements TelegramClient {
   }
 
   async start(): Promise<void> {
-    await this.bot.launch();
+    // bot.launch() never resolves while polling — launch without awaiting
+    // so startup continues and other agents (Brook, Franky, Luffy) can start
+    void this.bot.launch();
+    // Give Telegraf a moment to connect before returning
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   async stop(reason?: string): Promise<void> {
