@@ -126,6 +126,6 @@ describe('Phase2AceDispatcher', () => {
 
     const response = await dispatcher.dispatch(createTask({ userRequest: 'Please summarize this note' }));
 
-    expect(response).toContain('Handled by robin');
+    expect(response).toContain('Robin response');
   });
 });

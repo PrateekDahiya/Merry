@@ -168,52 +168,43 @@ export class AceAgent extends BaseAgent {
     requiresApproval: boolean,
   ): string {
     if (!specialistResult.success) {
-      return `Ace could not complete the request because ${routing.agent} failed: ${specialistResult.error ?? 'unknown error'}`;
+      return `Sorry, I couldn't complete that. ${specialistResult.error ?? 'An unknown error occurred.'}`;
     }
 
-    const specialistOutput = this.extractSpecialistResponse(specialistResult.result);
+    const parsed = SpecialistOutput.safeParse(specialistResult.result);
 
-    const parts = [
-      specialistOutput,
-      '',
-      `Handled by ${routing.agent}. Routing confidence: ${routing.confidence.toFixed(2)}. ${routing.reason}`,
-    ];
-
-    if (requiresApproval) {
-      const parsed = SpecialistOutput.safeParse(specialistResult.result);
-      const reason = parsed.success ? (parsed.data.approvalReason ?? 'This operation requires approval.') : 'This operation requires approval.';
-      parts.push('');
-      parts.push(`⚠️ APPROVAL REQUIRED: ${reason}`);
-      parts.push('Reply with "approve" or "yes" to proceed, or "cancel" to abort.');
-    }
-
-    return parts.join('\n');
-  }
-
-  private extractSpecialistResponse(result: unknown): string {
-    const parsed = SpecialistOutput.safeParse(result);
+    // User-facing response: just the answer + any warnings
+    const parts: string[] = [];
 
     if (parsed.success) {
-      return [
-        parsed.data.title,
-        parsed.data.response,
-        '',
-        `Summary: ${parsed.data.summary}`,
-        parsed.data.nextSteps.length > 0 ? `Next steps:\n${parsed.data.nextSteps.map(s => `  • ${s}`).join('\n')}` : '',
-        parsed.data.warnings.length > 0 ? `Warnings:\n${parsed.data.warnings.map(w => `  ⚠ ${w}`).join('\n')}` : '',
-      ]
-        .filter(Boolean)
-        .join('\n');
+      parts.push(parsed.data.response);
+
+      if (parsed.data.warnings.length > 0) {
+        parts.push('');
+        parts.push(parsed.data.warnings.map(w => `⚠️ ${w}`).join('\n'));
+      }
+    } else if (typeof specialistResult.result === 'string') {
+      parts.push(specialistResult.result);
+    } else {
+      parts.push(JSON.stringify(specialistResult.result));
     }
 
-    if (typeof result === 'string') return result;
-
-    if (result && typeof result === 'object' && 'response' in result) {
-      const r = (result as { response?: unknown }).response;
-      if (typeof r === 'string') return r;
+    if (requiresApproval) {
+      const reason = parsed.success
+        ? (parsed.data.approvalReason ?? 'This operation requires approval.')
+        : 'This operation requires approval.';
+      parts.push('');
+      parts.push(`⚠️ APPROVAL REQUIRED: ${reason}`);
+      parts.push('Reply with "approve" or "cancel" to proceed.');
     }
 
-    return JSON.stringify({ result });
+    // Routing debug info goes to logs only, not to the user
+    this.logger.debug(
+      { agent: routing.agent, confidence: routing.confidence, reason: routing.reason },
+      'Routing decision'
+    );
+
+    return parts.filter(Boolean).join('\n');
   }
 
   private async handleMonitorAlert(alert: MonitorAlert): Promise<void> {

@@ -77,7 +77,6 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
 
     const finalReply = client.sentMessages.find(m => m.text.includes('Robin response'));
     expect(finalReply).toBeDefined();
-    expect(finalReply?.text).toContain('Handled by robin');
   });
 
   it('routes a coding request through Sanji and sends a Telegram reply', async () => {
@@ -100,7 +99,6 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
 
     const finalReply = client.sentMessages.find(m => m.text.includes('Sanji response'));
     expect(finalReply).toBeDefined();
-    expect(finalReply?.text).toContain('Handled by sanji');
   });
 
   it('deduplicates repeated identical messages', async () => {
