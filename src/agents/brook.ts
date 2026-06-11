@@ -227,12 +227,10 @@ export class BrookAgent extends BaseAgent {
   }
 
   private async singLoop(): Promise<void> {
-    // 60% song, 40% random cheer
     const pool = Math.random() < 0.6 ? SONGS : CHEERS;
     const message = pool[Math.floor(Math.random() * pool.length)]!;
-
+    logger.info({ preview: message.substring(0, 60) }, 'Brook: sing loop firing');
     await this.sendToChats([{ agent: 'brook', text: message, delayMs: 0 }]);
-    logger.debug('Brook: sing loop fired');
   }
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -298,15 +296,27 @@ Return ONLY the message text — no JSON, no quotes.`,
 
   private async sendToChats(steps: ConversationStep[]): Promise<void> {
     const chatIds = await this.store.listAllChatIds();
+    logger.info({ chatCount: chatIds.length }, 'Brook: checking eligible chats');
+
+    if (chatIds.length === 0) {
+      logger.warn('Brook: no chats in store — set ADMIN_CHAT_IDS=<your_chat_id> and rebuild');
+      return;
+    }
+
     const now = Date.now();
+    let sent = 0;
 
     for (const chatId of chatIds) {
       const meta = await this.store.getChatMetadata(chatId);
       if (!meta) continue;
 
       const lastBrook = meta['lastBrookMessageAt'] ? new Date(meta['lastBrookMessageAt'] as string).getTime() : 0;
+      const waitMs = this.minDelayMs - (now - lastBrook);
 
-      if (now - lastBrook < this.minDelayMs) continue;  // too soon
+      if (waitMs > 0) {
+        logger.info({ chatId, waitMs: Math.round(waitMs / 1000) + 's' }, 'Brook: chat throttled, skipping');
+        continue;
+      }
 
       try {
         await notifier.sendSequence(Number(chatId), steps);
@@ -314,9 +324,15 @@ Return ONLY the message text — no JSON, no quotes.`,
           ...meta,
           lastBrookMessageAt: new Date().toISOString(),
         });
+        sent++;
+        logger.info({ chatId }, 'Brook: message sent');
       } catch (err) {
         logger.warn({ chatId, err: String(err) }, 'Brook: send failed');
       }
+    }
+
+    if (sent === 0) {
+      logger.info('Brook: no messages sent this cycle');
     }
   }
 

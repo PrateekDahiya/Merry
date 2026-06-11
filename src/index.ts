@@ -133,19 +133,18 @@ async function main() {
         logger.warn('ADMIN_CHAT_IDS is not set. Proactive messages (Brook, Franky, CrewScheduler) will only reach chats that have messaged the bot first. Set ADMIN_CHAT_IDS=<your_telegram_chat_id> to receive messages immediately on startup.');
       }
 
-      // Register admin chat IDs so proactive messages work before the user sends anything
+      // Register admin chat IDs — always refresh lastSeenAt so 48h inactivity
+      // checks never block proactive messages to admin chats
       if (config.adminChatIds.length > 0) {
         for (const chatId of config.adminChatIds) {
           const existing = (await store.getChatMetadata(chatId)) ?? {};
-          if (!existing['lastSeenAt']) {
-            await store.saveChatMetadata(chatId, {
-              ...existing,
-              chatId,
-              lastSeenAt: new Date().toISOString(),
-            });
-          }
+          await store.saveChatMetadata(chatId, {
+            ...existing,
+            chatId,
+            lastSeenAt: new Date().toISOString(),  // always refresh, not just on first register
+          });
         }
-        logger.info({ count: config.adminChatIds.length }, 'Registered admin chat IDs for proactive messaging');
+        logger.info({ chatIds: config.adminChatIds }, 'Admin chat IDs refreshed — proactive messages enabled');
       }
       jinbe = new JinbeAgent({
         client: telegramClient,
