@@ -19,7 +19,7 @@ export class TelegramNotifier {
     if (!this.client) return;
     const text = pickMessage(agent, event);
     if (!text) return;
-    await this.sendRaw(chatId, text);
+    await this.sendRaw(chatId, labelMessage(agent, text));
   }
 
   async sendRaw(chatId: number, text: string): Promise<void> {
@@ -35,12 +35,30 @@ export class TelegramNotifier {
   async sendSequence(chatId: number, steps: ConversationStep[]): Promise<void> {
     for (const step of steps) {
       if (step.delayMs > 0) await sleep(step.delayMs);
-      await this.sendRaw(chatId, step.text);
+      await this.sendRaw(chatId, labelMessage(step.agent, step.text));
     }
   }
 }
 
 export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook' | 'franky' | 'luffy';
+
+const AGENT_LABELS: Record<AgentVoice, string> = {
+  ace:    '🔥 Ace',
+  jinbe:  '🌊 Jinbe',
+  nami:   '🗺️ Nami',
+  robin:  '📖 Robin',
+  sanji:  '🍳 Sanji',
+  zoro:   '⚔️ Zoro',
+  tony:   '🦌 Tony',
+  brook:  '🎵 Brook',
+  franky: '🔧 Franky',
+  luffy:  '🍖 Luffy',
+};
+
+function labelMessage(agent: AgentVoice, text: string): string {
+  const label = AGENT_LABELS[agent];
+  return `*${label}:*\n${text}`;
+}
 
 export interface ConversationStep {
   agent: AgentVoice;

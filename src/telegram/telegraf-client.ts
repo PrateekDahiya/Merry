@@ -39,6 +39,7 @@ export class TelegrafTelegramClient implements TelegramClient {
 
   async sendMessage(chatId: number, text: string, options?: SendMessageOptions): Promise<void> {
     await this.bot.telegram.sendMessage(chatId, text, {
+      parse_mode: 'Markdown',
       reply_parameters: options?.replyToMessageId
         ? { message_id: options.replyToMessageId }
         : undefined,
