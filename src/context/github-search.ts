@@ -9,25 +9,35 @@ export interface GitHubSearchOptions {
   maxResults?: number;
 }
 
-interface GitHubCodeItem {
-  path: string;
-  repository: { full_name: string; description: string | null };
-  html_url: string;
-  text_matches?: Array<{ fragment: string; matches: Array<{ text: string }> }>;
-}
-
-interface GitHubRepoItem {
+interface GitHubRepo {
   full_name: string;
+  name: string;
   description: string | null;
   language: string | null;
   html_url: string;
-  stargazers_count: number;
+  default_branch: string;
+}
+
+interface GitHubCodeItem {
+  path: string;
+  repository: { full_name: string };
+  text_matches?: Array<{ fragment: string }>;
 }
 
 /**
- * Searches code and repositories across all of the user's GitHub repos.
- * Uses the GitHub REST Search API with text-match highlighting.
- * Degrades gracefully on rate-limit or auth errors — returns empty findings.
+ * Two-phase GitHub context search:
+ *
+ *  Phase 1 — Repo discovery
+ *    Search repos by name/description. If none match, list the user's most
+ *    recently updated repos as candidates.
+ *
+ *  Phase 2 — Content retrieval
+ *    For each found repo: fetch README (explains how the project works).
+ *    Then do a focused code search within those repos for technical terms.
+ *
+ * This is far more useful than a global code search because READMEs describe
+ * architecture and features in human language, which is what questions like
+ * "how does X work?" actually need.
  */
 export class GitHubContextSearch {
   private readonly token: string;
@@ -41,49 +51,34 @@ export class GitHubContextSearch {
   }
 
   async search(taskId: string, query: string): Promise<ContextResponse> {
-    const terms = extractSearchTerms(query);
-
-    if (terms.length === 0) {
-      return empty(taskId, 'No searchable terms in query.');
-    }
-
-    const [codeResult, repoResult] = await Promise.allSettled([
-      this.searchCode(terms),
-      this.searchRepos(terms),
-    ]);
+    const terms = extractTerms(query);
+    if (terms.length === 0) return empty(taskId, 'Query has no searchable terms.');
 
     const findings: ContextResponse['findings'] = [];
 
-    if (repoResult.status === 'fulfilled') {
-      for (const repo of repoResult.value) {
-        if (repo.description) {
-          findings.push({
-            source: `github:${repo.full_name}`,
-            snippet: `${repo.full_name}${repo.language ? ` [${repo.language}]` : ''}: ${repo.description}`,
-            relevance: 0.6,
-          });
-        }
-      }
-    }
+    try {
+      // Phase 1: find relevant repos
+      const repos = await this.findRepos(terms);
 
-    if (codeResult.status === 'fulfilled') {
-      for (const item of codeResult.value) {
-        const fragment = item.text_matches?.[0]?.fragment;
-        findings.push({
-          source: `github:${item.repository.full_name}/${item.path}`,
-          snippet: fragment
-            ? fragment.substring(0, 500)
-            : `${item.path} in ${item.repository.full_name}`,
-          relevance: fragment ? 0.8 : 0.4,
-        });
+      if (repos.length === 0) {
+        logger.info({ taskId, terms }, 'GitHub: no matching repos found');
+        return empty(taskId, `No GitHub repositories matched "${terms.slice(0, 3).join(', ')}" for @${this.username}.`);
       }
-    }
 
-    if (codeResult.status === 'rejected') {
-      logger.warn({ err: String(codeResult.reason) }, 'GitHub code search failed');
-    }
-    if (repoResult.status === 'rejected') {
-      logger.warn({ err: String(repoResult.reason) }, 'GitHub repo search failed');
+      logger.info({ taskId, repos: repos.map(r => r.full_name) }, 'GitHub: repos found');
+
+      // Phase 2: README + code per repo (in parallel)
+      const repoResults = await Promise.allSettled(
+        repos.slice(0, 3).map(repo => this.fetchRepoContext(repo, terms))
+      );
+
+      for (const r of repoResults) {
+        if (r.status === 'fulfilled') findings.push(...r.value);
+      }
+
+    } catch (err) {
+      logger.warn({ err: String(err) }, 'GitHub search error');
+      return empty(taskId, `GitHub search failed: ${String(err)}`);
     }
 
     const sorted = findings
@@ -91,40 +86,127 @@ export class GitHubContextSearch {
       .slice(0, this.maxResults);
 
     const summary = sorted.length > 0
-      ? `Found ${sorted.length} GitHub result(s) across @${this.username}'s repositories.`
-      : `No relevant GitHub code found for @${this.username}.`;
+      ? `Found ${sorted.length} GitHub context item(s) for @${this.username}.`
+      : `No relevant content found in GitHub repos for @${this.username}.`;
 
     logger.info({ taskId, count: sorted.length }, 'GitHub search completed');
-
     return { taskId, findings: sorted, summary, timestamp: new Date() };
   }
 
-  private async searchCode(terms: string[]): Promise<GitHubCodeItem[]> {
-    const q = `${terms.join('+')}+user:${this.username}`;
-    const url = `https://api.github.com/search/code?q=${encodeURIComponent(q)}&per_page=${this.maxResults}`;
+  private async findRepos(terms: string[]): Promise<GitHubRepo[]> {
+    // First try: search by repo name/description matching the query terms
+    const q = `${terms.slice(0, 4).join('+')}+user:${this.username}`;
+    const searchRes = await this.get<{ items: GitHubRepo[] }>(
+      `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=5&sort=stars`,
+      false
+    );
 
-    const res = await this.get<{ items: GitHubCodeItem[] }>(url, true);
-    return res.items ?? [];
+    if (searchRes.items.length > 0) return searchRes.items;
+
+    // Fallback: return the user's 10 most recently pushed repos so we have
+    // something to search within when query terms don't match repo names
+    const listRes = await this.get<GitHubRepo[]>(
+      `https://api.github.com/users/${this.username}/repos?per_page=10&sort=pushed&type=owner`,
+      false
+    );
+    return listRes;
   }
 
-  private async searchRepos(terms: string[]): Promise<GitHubRepoItem[]> {
-    const q = `${terms.join('+')}+user:${this.username}`;
-    const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=5&sort=stars`;
+  private async fetchRepoContext(
+    repo: GitHubRepo,
+    terms: string[],
+  ): Promise<ContextResponse['findings']> {
+    const findings: ContextResponse['findings'] = [];
 
-    const res = await this.get<{ items: GitHubRepoItem[] }>(url, false);
-    return res.items ?? [];
+    // Always include repo metadata as a finding
+    findings.push({
+      source: `github:${repo.full_name}`,
+      snippet: [
+        `Repository: ${repo.full_name}`,
+        repo.description ? `Description: ${repo.description}` : null,
+        repo.language ? `Language: ${repo.language}` : null,
+        `URL: ${repo.html_url}`,
+      ].filter(Boolean).join('\n'),
+      relevance: 0.5,
+    });
+
+    // Fetch README in parallel with code search
+    const [readmeResult, codeResult] = await Promise.allSettled([
+      this.fetchReadme(repo),
+      this.searchCodeInRepo(repo, terms),
+    ]);
+
+    if (readmeResult.status === 'fulfilled' && readmeResult.value) {
+      findings.push({
+        source: `github:${repo.full_name}/README.md`,
+        snippet: readmeResult.value.substring(0, 1200),
+        relevance: 0.9,
+      });
+    }
+
+    if (codeResult.status === 'fulfilled') {
+      findings.push(...codeResult.value);
+    }
+
+    return findings;
+  }
+
+  private async fetchReadme(repo: GitHubRepo): Promise<string | null> {
+    try {
+      const data = await this.get<{ content: string; encoding: string }>(
+        `https://api.github.com/repos/${repo.full_name}/readme`,
+        false
+      );
+
+      if (data.encoding === 'base64') {
+        const decoded = Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf-8');
+        // Strip markdown images and links to keep it clean
+        return decoded
+          .replace(/!\[.*?\]\(.*?\)/g, '')
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+          .substring(0, 2000);
+      }
+    } catch {
+      // Repo has no README — that's fine
+    }
+    return null;
+  }
+
+  private async searchCodeInRepo(
+    repo: GitHubRepo,
+    terms: string[],
+  ): Promise<ContextResponse['findings']> {
+    const codeTerms = terms.filter(t => t.length > 3).slice(0, 3);
+    if (codeTerms.length === 0) return [];
+
+    const q = `${codeTerms.join('+')}+repo:${repo.full_name}`;
+    try {
+      const res = await this.get<{ items: GitHubCodeItem[] }>(
+        `https://api.github.com/search/code?q=${encodeURIComponent(q)}&per_page=3`,
+        true
+      );
+
+      return res.items.map(item => ({
+        source: `github:${item.repository.full_name}/${item.path}`,
+        snippet: item.text_matches?.[0]?.fragment?.substring(0, 600)
+          ?? `File: ${item.path}`,
+        relevance: item.text_matches?.length ? 0.8 : 0.4,
+      }));
+    } catch {
+      return [];
+    }
   }
 
   private async get<T>(url: string, textMatch: boolean): Promise<T> {
-    const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.token}`,
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Accept': textMatch
-        ? 'application/vnd.github.text-match+json'
-        : 'application/vnd.github+json',
-    };
-
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Accept': textMatch
+          ? 'application/vnd.github.text-match+json'
+          : 'application/vnd.github+json',
+      },
+    });
 
     if (res.status === 403) {
       const remaining = res.headers.get('x-ratelimit-remaining');
@@ -132,24 +214,28 @@ export class GitHubContextSearch {
         const reset = res.headers.get('x-ratelimit-reset');
         throw new Error(`GitHub rate limit hit. Resets at ${reset ? new Date(Number(reset) * 1000).toISOString() : 'unknown'}`);
       }
-      throw new Error(`GitHub API 403 Forbidden — check your token has repo read scope`);
+      throw new Error('GitHub API 403 — check your token has repo read scope');
     }
 
     if (!res.ok) {
-      throw new Error(`GitHub API error ${res.status}: ${await res.text()}`);
+      throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
     }
 
     return res.json() as Promise<T>;
   }
 }
 
-function extractSearchTerms(query: string): string[] {
-  const stopWords = new Set(['a', 'an', 'the', 'is', 'in', 'on', 'for', 'to', 'and', 'or', 'how', 'what', 'can', 'i', 'my', 'me', 'please']);
+function extractTerms(query: string): string[] {
+  const stop = new Set(['a','an','the','is','in','on','for','to','and','or','how',
+    'what','can','i','my','me','please','tell','get','does','make','making','its',
+    'will','was','has','have','are','be','do','did','your','our','their','this',
+    'that','with','from','about','when','where','why','who']);
+
   return query
     .toLowerCase()
     .replace(/[^\w\s]/g, ' ')
     .split(/\s+/)
-    .filter(t => t.length > 2 && !stopWords.has(t))
+    .filter(t => t.length > 2 && !stop.has(t))
     .slice(0, 6);
 }
 
