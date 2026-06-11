@@ -256,11 +256,12 @@ Start with a # heading summarising the topic. Output markdown only.`,
         'Zoro indexed file'
       );
     } catch (err) {
-      if (isRateLimitError(err)) {
+      if (isRetryableError(err)) {
+        // Network/rate-limit error — release file back to queue, worker sleeps
         this.tracker.releaseWork(repo, filePath);
         this.logger.warn(
           { workerId, repo, filePath, sleepMs: this.rateLimitSleepMs, err: String(err) },
-          'Zoro: rate limit — file released, worker sleeping'
+          'Zoro: transient error — file released, worker sleeping'
         );
         await sleep(this.rateLimitSleepMs);
       } else if (isForbiddenError(err)) {
@@ -351,30 +352,39 @@ function isForbiddenError(err: unknown): boolean {
 }
 
 /**
- * Returns true for transient/recoverable errors where retrying makes sense:
- *   - HTTP 429 (Too Many Requests) from Groq, GitHub, or any API
- *   - Rate limit messages from Groq SDK
- *   - Network timeouts / connection resets
+ * Returns true for transient errors that are worth retrying:
+ *   - Rate limits (HTTP 429, "rate limit", "too many requests")
+ *   - Network failures ("fetch failed", ECONNREFUSED, ECONNRESET, timeouts)
+ *   - Ollama/LLM temporarily unreachable
  *
- * Returns false for permanent errors that retrying won't fix:
- *   - File not found (404)
- *   - Permission denied (403 non-rate-limit)
- *   - Malformed content / parse errors
+ * Returns false only for permanent errors that retrying cannot fix:
+ *   - GITHUB_FORBIDDEN (handled separately by isForbiddenError)
+ *   - Malformed/binary content
  */
-function isRateLimitError(err: unknown): boolean {
+function isRetryableError(err: unknown): boolean {
   const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
   return (
+    // Rate limits
     msg.includes('rate limit') ||
     msg.includes('rate_limit') ||
     msg.includes('too many requests') ||
     msg.includes('429') ||
     msg.includes('tokens per minute') ||
     msg.includes('requests per minute') ||
+    // Network / connection errors — LLM or GitHub temporarily unreachable
+    msg.includes('fetch failed') ||
+    msg.includes('econnrefused') ||
     msg.includes('econnreset') ||
     msg.includes('etimedout') ||
-    msg.includes('socket hang up')
+    msg.includes('socket hang up') ||
+    msg.includes('network') ||
+    msg.includes('connection refused') ||
+    msg.includes('failed to fetch')
   );
 }
+
+/** @deprecated use isRetryableError */
+const isRateLimitError = isRetryableError;
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
