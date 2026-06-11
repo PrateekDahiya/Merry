@@ -1,37 +1,58 @@
 import dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
 
 import { loadConfig } from './config/config.js';
 import { initializeLogger, getLogger } from './logging/logger.js';
-import { initializeStore } from './persistence/store.js';
+import { createStore } from './persistence/factory.js';
 import { TomAgent } from './agents/tom.js';
 import { AceAgent } from './agents/ace.js';
+import { TonyAgent } from './agents/tony.js';
 import { NamiAgent } from './agents/nami.js';
+import { TonyMonitor } from './monitoring/monitor.js';
 import { Phase2AceDispatcher } from './orchestrator/phase2-dispatcher.js';
 import { TelegrafTelegramClient } from './telegram/telegraf-client.js';
+import { createLlmClient } from './llm/client.js';
 
 const logger = getLogger();
 
-/**
- * Main entry point for the Telegram Agent Orchestrator system.
- * Phase 1: Foundation setup and health check.
- */
 async function main() {
   try {
     logger.info('Telegram Agent Orchestrator starting...');
 
-    // Load configuration
     const config = loadConfig();
+    initializeLogger(config);
     logger.info({ env: config.nodeEnv, logLevel: config.logLevel }, 'Configuration loaded');
 
-    // Initialize logger with config
-    initializeLogger(config);
+    const store = createStore(config.persistenceType, config.dbPath);
+    logger.info({ persistenceType: config.persistenceType }, 'Persistence store initialized');
 
-    // Initialize persistence store
-    const store = initializeStore();
-    logger.info('Persistence store initialized');
+    const llm = createLlmClient({
+      apiKey: config.anthropicApiKey,
+      mock: config.useMockAgents,
+      model: config.anthropicModel,
+    });
+    logger.info({ mock: config.useMockAgents || !config.anthropicApiKey }, 'LLM client initialized');
+
+    const tonyMonitor = new TonyMonitor(store, {
+      checkIntervalMs: config.tonyCheckIntervalMs,
+      stuckThresholdMs: config.tonyStuckThresholdMs,
+    });
+
+    const ace = new AceAgent({
+      store,
+      llm,
+      monitor: tonyMonitor,
+      contextAgentFactory: () =>
+        new NamiAgent({
+          maxDepth: config.contextSearchDepth,
+          maxResults: config.contextMaxResults,
+        }),
+    });
+
+    const tony = new TonyAgent({ store, monitor: tonyMonitor });
+    await tony.onStart();
+    logger.info('Tony watchdog started');
 
     let tom: TomAgent | null = null;
 
@@ -40,31 +61,20 @@ async function main() {
     } else {
       tom = new TomAgent({
         client: new TelegrafTelegramClient(config.telegramBotToken),
-        dispatcher: new Phase2AceDispatcher(
-          store,
-          new AceAgent({
-            store,
-            contextAgentFactory: () =>
-              new NamiAgent({
-                maxDepth: config.contextSearchDepth,
-                maxResults: config.contextMaxResults,
-              }),
-          })
-        ),
+        dispatcher: new Phase2AceDispatcher(store, ace),
       });
-
       await tom.start();
     }
 
-    // Log all components are ready
     logger.info(
       {
-        version: '0.1.0',
-        phase: '5 - Specialist Agents',
+        version: '0.2.0',
+        phase: '9 - Production Ready',
         components: [
           'config',
           'logging',
           'persistence',
+          'llm-client',
           'agent-base',
           'message-types',
           'error-types',
@@ -78,25 +88,25 @@ async function main() {
           'specialist-contract',
           'robin-agent',
           'sanji-agent',
+          'tony-agent',
+          'tony-monitor',
+          'file-store',
         ],
       },
-      'All Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 components initialized'
+      'All components initialized. System ready.'
     );
 
-    logger.info('System ready. Phases 6-9 pending implementation.');
-
-    // Graceful shutdown handler
-    process.on('SIGINT', async () => {
-      logger.info('Shutting down gracefully...');
-      await tom?.stop('SIGINT');
+    const shutdown = async (signal: string) => {
+      logger.info({ signal }, 'Shutting down gracefully...');
+      await tony.onStop();
+      await tom?.stop(signal);
+      const fileStore = store as { flush?: () => void };
+      if (typeof fileStore.flush === 'function') fileStore.flush();
       process.exit(0);
-    });
+    };
 
-    process.on('SIGTERM', async () => {
-      logger.info('Shutting down gracefully...');
-      await tom?.stop('SIGTERM');
-      process.exit(0);
-    });
+    process.on('SIGINT', () => void shutdown('SIGINT'));
+    process.on('SIGTERM', () => void shutdown('SIGTERM'));
   } catch (error) {
     logger.error(error, 'Fatal error during startup');
     process.exit(1);

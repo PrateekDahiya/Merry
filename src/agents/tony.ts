@@ -1,43 +1,59 @@
 import { BaseAgent } from './base.js';
 import { TaskEnvelope } from '../types/messages.js';
+import { TonyMonitor, MonitorAlert } from '../monitoring/monitor.js';
+import { TaskStore, ResultStore, getStore } from '../persistence/store.js';
+
+interface TonyAgentOptions {
+  store?: TaskStore & ResultStore;
+  monitor?: TonyMonitor;
+}
 
 /**
  * Tony - Health Monitoring and Watchdog Agent
  *
- * Responsibilities:
- * - Track task runtime and agent heartbeat
- * - Monitor queue latency and failure states
- * - Detect timeouts, stuck jobs, repeated errors
- * - Detect worker crashes
- * - Notify Ace with diagnostic summary
- * - Suggest recovery actions
- * - Automatic retries where appropriate
- *
- * Phase 6 will implement full monitoring logic.
- * Phase 1 skeleton provides structure only.
+ * Tony wraps TonyMonitor, which runs an independent background check loop.
+ * As a BaseAgent subclass, Tony can also be executed as a one-shot health query.
+ * The primary monitoring path is via TonyMonitor.start() / TonyMonitor.stop().
  */
 export class TonyAgent extends BaseAgent {
-  constructor() {
+  private readonly monitor: TonyMonitor;
+
+  constructor(options: TonyAgentOptions = {}) {
     super('tony-primary', 'tony');
+    const store = options.store ?? getStore();
+    this.monitor = options.monitor ?? new TonyMonitor(store, {
+      checkIntervalMs: 5000,
+      stuckThresholdMs: 60000,
+    });
   }
 
-  protected async doWork(task: TaskEnvelope): Promise<unknown> {
-    this.logger.info({ taskId: task.taskId }, 'Tony monitoring agents');
+  getMonitor(): TonyMonitor {
+    return this.monitor;
+  }
 
-    // Phase 6 will implement:
-    // 1. Heartbeat tracking
-    // 2. Task runtime monitoring
-    // 3. Queue health analysis
-    // 4. Failure detection and classification
-    // 5. Stalled task detection
-    // 6. Health report generation
-    // 7. Alert notification to Ace
-    // 8. Retry policy enforcement
+  override async onStart(): Promise<void> {
+    this.monitor.start();
+    this.logger.info('Tony watchdog started');
+  }
+
+  override async onStop(): Promise<void> {
+    this.monitor.stop();
+    this.logger.info('Tony watchdog stopped');
+  }
+
+  /**
+   * One-shot health snapshot for ad-hoc queries.
+   * Returns the current state: agent statuses + stuck task count.
+   */
+  protected async doWork(_task: TaskEnvelope): Promise<unknown> {
+    await this.monitor.runChecks();
 
     return {
-      status: 'not_implemented',
-      message: 'Tony monitoring will be implemented in Phase 6',
-      taskId: task.taskId,
+      status: 'ok',
+      agentStatuses: this.monitor.getAgentStatuses(),
+      checkedAt: new Date().toISOString(),
     };
   }
 }
+
+export { MonitorAlert };

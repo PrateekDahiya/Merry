@@ -12,6 +12,7 @@ export const TaskState = z.enum([
   'delegated',
   'running',
   'waiting_for_context',
+  'awaiting_approval',
   'completed',
   'failed',
   'stuck',

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { RobinAgent } from '../../src/agents/robin.js';
 import { SanjiAgent } from '../../src/agents/sanji.js';
 import { SpecialistOutput } from '../../src/agents/specialists.js';
+import { MockLlmClient } from '../../src/llm/client.js';
 import { TaskEnvelope } from '../../src/types/messages.js';
 
 function createTask(userRequest: string, context: Record<string, unknown> = {}): TaskEnvelope {
@@ -20,7 +21,7 @@ function createTask(userRequest: string, context: Record<string, unknown> = {}):
 
 describe('specialist workers', () => {
   it('produces structured Robin output with writing-oriented language', async () => {
-    const robin = new RobinAgent();
+    const robin = new RobinAgent(new MockLlmClient());
     const result = await robin.execute(createTask('write a polished summary', { audience: 'executives' }));
 
     expect(result.success).toBe(true);
@@ -30,12 +31,11 @@ describe('specialist workers', () => {
     expect(output.specialist).toBe('robin');
     expect(output.title).toBe('Writing synthesis');
     expect(output.response).toContain('Robin response');
-    expect(output.prompt).toContain('writing specialist');
-    expect(output.prompt).toContain('audience');
+    expect(output.prompt).toContain('write a polished summary');
   });
 
   it('produces structured Sanji output with coding-oriented language', async () => {
-    const sanji = new SanjiAgent();
+    const sanji = new SanjiAgent(new MockLlmClient());
     const result = await sanji.execute(
       createTask('implement a retryable queue', { files: ['src/index.ts', 'src/queue.ts'] })
     );
@@ -47,8 +47,30 @@ describe('specialist workers', () => {
     expect(output.specialist).toBe('sanji');
     expect(output.title).toBe('Implementation plan');
     expect(output.response).toContain('Sanji response');
-    expect(output.prompt).toContain('coding specialist');
-    expect(output.prompt).toContain('retryable queue');
+    expect(output.prompt).toContain('implement a retryable queue');
     expect(output.warnings).toContain('Destructive or broad refactors require Ace approval before execution.');
+  });
+
+  it('flags destructive requests for approval', async () => {
+    const sanji = new SanjiAgent(new MockLlmClient());
+    const result = await sanji.execute(
+      createTask('drop table users and truncate all logs')
+    );
+
+    expect(result.success).toBe(true);
+    const output = SpecialistOutput.parse(result.result);
+    expect(output.requiresApproval).toBe(true);
+    expect(output.warnings.length).toBeGreaterThan(0);
+  });
+
+  it('does not flag normal requests for approval', async () => {
+    const sanji = new SanjiAgent(new MockLlmClient());
+    const result = await sanji.execute(
+      createTask('add a retry helper function to queue.ts')
+    );
+
+    expect(result.success).toBe(true);
+    const output = SpecialistOutput.parse(result.result);
+    expect(output.requiresApproval).toBe(false);
   });
 });

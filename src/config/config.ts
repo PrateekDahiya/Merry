@@ -18,6 +18,10 @@ const configSchema = z.object({
   telegramBotToken: z.string().min(1),
   telegramWebhookSecret: z.string().default('webhook-secret'),
 
+  // LLM (Anthropic Claude)
+  anthropicApiKey: z.string().optional(),
+  anthropicModel: z.string().default('claude-sonnet-4-6'),
+
   // Logging
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   nodeEnv: z.enum(['development', 'production', 'test']).default('development'),
@@ -39,6 +43,10 @@ const configSchema = z.object({
   taskMaxConcurrent: z.number().positive().default(10),
   taskQueueSize: z.number().positive().default(1000),
   taskPersistenceEnabled: optionalBoolean.default(true),
+
+  // Persistence
+  persistenceType: z.enum(['memory', 'file']).default('file'),
+  dbPath: z.string().default('./data/store.json'),
 
   // Admin
   adminUserIds: z
@@ -68,6 +76,8 @@ export function loadConfig(): Config {
   const rawConfig = {
     telegramBotToken: env.TELEGRAM_BOT_TOKEN,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
+    anthropicApiKey: env.ANTHROPIC_API_KEY,
+    anthropicModel: env.ANTHROPIC_MODEL,
     logLevel: env.LOG_LEVEL,
     nodeEnv: env.NODE_ENV,
     agentTimeoutMs: env.AGENT_TIMEOUT_MS ? parseInt(env.AGENT_TIMEOUT_MS) : undefined,
@@ -80,6 +90,8 @@ export function loadConfig(): Config {
     taskMaxConcurrent: env.TASK_MAX_CONCURRENT ? parseInt(env.TASK_MAX_CONCURRENT) : undefined,
     taskQueueSize: env.TASK_QUEUE_SIZE ? parseInt(env.TASK_QUEUE_SIZE) : undefined,
     taskPersistenceEnabled: env.TASK_PERSISTENCE_ENABLED,
+    persistenceType: env.PERSISTENCE_TYPE as 'memory' | 'file' | undefined,
+    dbPath: env.DB_PATH,
     adminUserIds: env.ADMIN_USER_IDS,
     useMockAgents: env.USE_MOCK_AGENTS,
     useMockTelegram: env.USE_MOCK_TELEGRAM,

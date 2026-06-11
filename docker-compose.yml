@@ -1,0 +1,28 @@
+version: '3.9'
+
+services:
+  merry:
+    build: .
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - PERSISTENCE_TYPE=file
+      - DB_PATH=/app/data/store.json
+      - AGENT_TIMEOUT_MS=${AGENT_TIMEOUT_MS:-60000}
+      - CONTEXT_SEARCH_DEPTH=${CONTEXT_SEARCH_DEPTH:-3}
+      - CONTEXT_MAX_RESULTS=${CONTEXT_MAX_RESULTS:-10}
+      - TONY_CHECK_INTERVAL_MS=${TONY_CHECK_INTERVAL_MS:-10000}
+      - TONY_STUCK_THRESHOLD_MS=${TONY_STUCK_THRESHOLD_MS:-120000}
+      - ADMIN_USER_IDS=${ADMIN_USER_IDS:-}
+      - ENABLE_AUDIT_LOGS=true
+      - USE_MOCK_AGENTS=false
+      - USE_MOCK_TELEGRAM=false
+    volumes:
+      - merry_data:/app/data
+
+volumes:
+  merry_data:
