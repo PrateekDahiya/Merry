@@ -1,5 +1,5 @@
 import { BaseAgent } from './base.js';
-import { TaskEnvelope } from '../types/messages.js';
+import { ContextResponse, TaskEnvelope } from '../types/messages.js';
 
 /**
  * Nami - Context Retrieval Agent
@@ -11,29 +11,22 @@ import { TaskEnvelope } from '../types/messages.js';
  * - Provide relevant snippets and recommendations
  * - Support easy extension with new context sources
  *
- * Phase 4 will implement full context retrieval.
- * Phase 1 skeleton provides structure only.
+ * Phase 4 will implement full repository search.
+ * Phase 3 returns a structured placeholder so Ace can coordinate context.
  */
 export class NamiAgent extends BaseAgent {
   constructor() {
     super('nami-primary', 'nami');
   }
 
-  protected async doWork(task: TaskEnvelope): Promise<unknown> {
+  protected async doWork(task: TaskEnvelope): Promise<ContextResponse> {
     this.logger.info({ taskId: task.taskId }, 'Nami retrieving context');
 
-    // Phase 4 will implement:
-    // 1. Repository/codebase indexing
-    // 2. Documentation search
-    // 3. Config file lookup
-    // 4. Local source search
-    // 5. Context ranking and filtering
-    // 6. Structured response building
-
     return {
-      status: 'not_implemented',
-      message: 'Nami context retrieval will be implemented in Phase 4',
       taskId: task.taskId,
+      findings: [],
+      summary: 'Phase 4 context retrieval is not implemented yet. No repository snippets were attached.',
+      timestamp: new Date(),
     };
   }
 }

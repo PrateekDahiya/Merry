@@ -2,7 +2,7 @@
 
 Production-ready Telegram bot architecture for receiving Telegram messages, routing work through Ace, delegating to specialist agents, and returning final responses through Tom.
 
-Current status: Phase 2 is complete. Telegram entrypoint behavior is implemented; later orchestration, context, specialist, monitoring, and durable persistence phases are still skeletons or boundaries.
+Current status: Phase 3 is complete. Telegram entrypoint behavior and Ace orchestration are implemented; context retrieval, model-backed specialist work, monitoring, and durable persistence are still future phases.
 
 ## Agents
 
@@ -35,14 +35,21 @@ Built and working:
 - Immediate typing action plus `Checking...` acknowledgment.
 - Task envelope creation from Telegram messages.
 - In-memory message deduplication by chat/message ID.
-- Phase 2 Ace handoff boundary that stores and marks tasks as delegated.
+- Telegram-to-Ace dispatcher that runs Ace and returns the synthesized response to Tom.
 - Long response splitting for Telegram's message length limit.
 - Mockable Telegram client and dispatcher interfaces.
 - Unit tests for Telegram formatting and Tom's receive/ack/dispatch flow.
+- Ace orchestration flow.
+- Dynamic specialist routing between Robin and Sanji using deterministic rules.
+- Task lifecycle transitions through `running`, `waiting_for_context`, `delegated`, `completed`, and `failed`.
+- Nami context request step with a structured placeholder response.
+- Specialist delegation and result persistence.
+- Final response synthesis by Ace.
+- Telegram dispatcher now returns Ace's final response to Tom.
+- Unit tests for routing, lifecycle completion/failure, and dispatcher response flow.
 
 Not implemented yet:
 
-- Real Ace orchestration and dynamic specialist selection.
 - Nami repository search.
 - Robin/Sanji model-backed specialist execution.
 - Tony runtime monitoring loop.
@@ -55,7 +62,7 @@ Prerequisites:
 
 - Node.js 18+
 - npm
-- Telegram bot token from BotFather, once Phase 2 is implemented
+- Telegram bot token from BotFather for live Telegram mode
 
 Install dependencies:
 
@@ -140,13 +147,13 @@ src/
   context/         Phase 4 context service boundary
   logging/         Logger setup
   monitoring/      Phase 6 monitoring boundary
-  orchestrator/    Phase 2 Ace handoff boundary; Phase 3 orchestration later
+  orchestrator/    Phase 3 routing, result contracts, and Telegram-to-Ace dispatch
   persistence/     In-memory Phase 1 store
   telegram/        Phase 2 Telegram adapter, formatting, and task factory
   types/           Shared schemas and error types
   utils/           Shared utilities
 tests/
-  unit/            Phase 1 and Phase 2 unit tests
+  unit/            Phase 1, Phase 2, and Phase 3 unit tests
 ```
 
 ## Message Contracts
@@ -178,7 +185,7 @@ export class MyAgent extends BaseAgent {
 }
 ```
 
-Future phases will add Ace registration and routing rules for specialist agents.
+Register the new specialist in Ace's `specialistFactories` and update `selectSpecialistAgent` when it should be routable.
 
 ## Example Telegram Flow
 
@@ -188,16 +195,15 @@ With `USE_MOCK_TELEGRAM=false`, Tom starts a Telegraf polling listener:
 2. Tom receives the update and normalizes chat ID, message ID, user ID, sender names, timestamp, text, and reply metadata.
 3. Tom sends a typing action and replies `Checking...`.
 4. Tom creates a `TaskEnvelope` assigned to Ace.
-5. The Phase 2 dispatcher persists the task and marks it `delegated`.
-6. Phase 3 will replace this boundary with real Ace orchestration and final response synthesis.
+5. The Telegram-to-Ace dispatcher runs Ace.
+6. Ace asks Nami for context, selects Robin or Sanji, delegates the task, and synthesizes the final response.
+7. Tom sends Ace's final response back to Telegram.
 
 ## Next Phase
 
-Phase 3 is orchestration implementation:
+Phase 4 is context retrieval implementation:
 
-- Implement Ace's routing logic.
-- Add task lifecycle transitions beyond the Phase 2 handoff.
-- Select specialist agents dynamically.
-- Ask Nami for context.
-- Delegate work and synthesize final responses.
-- Return final responses through Tom.
+- Implement Nami's repository/docs/config search.
+- Return structured source paths, snippets, relevance scores, and recommendations.
+- Feed real context into Ace's specialist delegation path.
+- Add tests for context ranking and source extraction.

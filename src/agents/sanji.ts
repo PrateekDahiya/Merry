@@ -11,8 +11,8 @@ import { TaskEnvelope } from '../types/messages.js';
  * - Code-specific tasks
  * - Safe approval/checkpoint mechanism for risky changes
  *
- * Phase 5 will implement full coding capabilities.
- * Phase 1 skeleton provides structure only.
+ * Phase 5 will implement model-backed coding capabilities.
+ * Phase 3 returns a deterministic specialist response for orchestration.
  */
 export class SanjiAgent extends BaseAgent {
   constructor() {
@@ -22,18 +22,12 @@ export class SanjiAgent extends BaseAgent {
   protected async doWork(task: TaskEnvelope): Promise<unknown> {
     this.logger.info({ taskId: task.taskId }, 'Sanji processing coding task');
 
-    // Phase 5 will implement:
-    // 1. Code analysis and understanding
-    // 2. LLM/API calls for code generation
-    // 3. Syntax validation
-    // 4. Test generation
-    // 5. Safe approval checkpoints for destructive changes
-    // 6. Execution in sandboxed environment
-
     return {
-      status: 'not_implemented',
-      message: 'Sanji coding agent will be implemented in Phase 5',
+      status: 'completed',
+      agent: 'sanji',
       taskId: task.taskId,
+      response: `Sanji received the coding request: "${task.userRequest}". Model-backed implementation will be added in Phase 5.`,
+      safety: 'No code changes were attempted by this Phase 3 worker.',
     };
   }
 }

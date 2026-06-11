@@ -48,7 +48,7 @@ async function main() {
     logger.info(
       {
         version: '0.1.0',
-        phase: '2 - Telegram Entrypoint',
+        phase: '3 - Orchestration Layer',
         components: [
           'config',
           'logging',
@@ -58,13 +58,15 @@ async function main() {
           'error-types',
           'telegram-client',
           'tom-agent',
-          'phase2-ace-dispatcher',
+          'ace-agent',
+          'routing',
+          'telegram-ace-dispatcher',
         ],
       },
-      'All Phase 1 and Phase 2 components initialized'
+      'All Phase 1, Phase 2, and Phase 3 components initialized'
     );
 
-    logger.info('System ready. Phases 3-9 pending implementation.');
+    logger.info('System ready. Phases 4-9 pending implementation.');
 
     // Graceful shutdown handler
     process.on('SIGINT', async () => {

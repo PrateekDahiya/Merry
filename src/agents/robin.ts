@@ -10,8 +10,8 @@ import { TaskEnvelope } from '../types/messages.js';
  * - Natural language response generation
  * - Formatting and structuring text output
  *
- * Phase 5 will implement full writing capabilities.
- * Phase 1 skeleton provides structure only.
+ * Phase 5 will implement model-backed writing capabilities.
+ * Phase 3 returns a deterministic specialist response for orchestration.
  */
 export class RobinAgent extends BaseAgent {
   constructor() {
@@ -21,17 +21,12 @@ export class RobinAgent extends BaseAgent {
   protected async doWork(task: TaskEnvelope): Promise<unknown> {
     this.logger.info({ taskId: task.taskId }, 'Robin processing writing task');
 
-    // Phase 5 will implement:
-    // 1. Prompt template instantiation
-    // 2. LLM/API calls for writing
-    // 3. Output validation and formatting
-    // 4. Revision handling
-    // 5. Structure and clarity optimization
-
     return {
-      status: 'not_implemented',
-      message: 'Robin writing agent will be implemented in Phase 5',
+      status: 'completed',
+      agent: 'robin',
       taskId: task.taskId,
+      response: `Robin received the writing request: "${task.userRequest}". Model-backed writing will be added in Phase 5.`,
+      notes: ['Phase 3 verified routing, delegation, and structured return flow.'],
     };
   }
 }
