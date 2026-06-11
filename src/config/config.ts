@@ -99,6 +99,7 @@ const configSchema = z.object({
   // Health monitoring (Tony)
   tonyCheckIntervalMs: z.number().positive().default(5000),
   tonyStuckThresholdMs: z.number().positive().default(60000),
+  tonyReportIntervalMs: z.number().positive().default(1_800_000),  // 30 min health report
 
   // Task management
   taskMaxConcurrent: z.number().positive().default(10),
@@ -194,6 +195,7 @@ export function loadConfig(): Config {
     contextMaxResults: env.CONTEXT_MAX_RESULTS ? parseInt(env.CONTEXT_MAX_RESULTS) : undefined,
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,
     tonyStuckThresholdMs: env.TONY_STUCK_THRESHOLD_MS ? parseInt(env.TONY_STUCK_THRESHOLD_MS) : undefined,
+    tonyReportIntervalMs: env.TONY_REPORT_INTERVAL_MS ? parseInt(env.TONY_REPORT_INTERVAL_MS) : undefined,
     taskMaxConcurrent: env.TASK_MAX_CONCURRENT ? parseInt(env.TASK_MAX_CONCURRENT) : undefined,
     taskQueueSize: env.TASK_QUEUE_SIZE ? parseInt(env.TASK_QUEUE_SIZE) : undefined,
     taskPersistenceEnabled: env.TASK_PERSISTENCE_ENABLED,

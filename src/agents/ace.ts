@@ -230,14 +230,16 @@ export class AceAgent extends BaseAgent {
       },
       `Tony alert: ${alert.details}`
     );
-    // Tony occasionally notifies in active chats (20% chance, only critical)
-    if (alert.severity === 'critical' && rarely(0.2)) {
+    // Always notify for critical; 30% chance for warnings
+    const shouldNotify = alert.severity === 'critical' || rarely(0.3);
+    if (shouldNotify) {
       const chatIds = alert.affectedTaskIds
         ? await Promise.all(alert.affectedTaskIds.map(id => this.store.getTask(id)))
           .then(tasks => [...new Set(tasks.filter(Boolean).map(t => Number(t!.chatId)))])
         : [];
+      const event = alert.severity === 'critical' ? 'error' : 'working';
       for (const chatId of chatIds) {
-        void notifier.send(chatId, 'tony', 'error');
+        void notifier.send(chatId, 'tony', event);
       }
     }
 

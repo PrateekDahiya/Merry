@@ -6,6 +6,7 @@ import { notifier, ConversationStep, AgentVoice } from '../telegram/notifier.js'
 import { WeatherService } from '../services/weather.js';
 import { getClockContext } from '../services/clock.js';
 import { selectScript } from '../crew/conversations.js';
+import { TonyMonitor } from '../monitoring/monitor.js';
 import { createChildLogger } from '../logging/logger.js';
 
 const logger = createChildLogger({ component: 'franky' });
@@ -14,6 +15,7 @@ export interface FrankyOptions {
   store: ChatMetadataStore;
   llm: LlmClient;
   weather?: WeatherService;
+  monitor?: TonyMonitor;
   intervalMs?: number;
   minDelayMs?: number;
   firstFireDelayMs?: number;
@@ -71,6 +73,7 @@ export class FrankyAgent extends BaseAgent {
   private readonly store: ChatMetadataStore;
   private readonly llm: LlmClient;
   private readonly weather?: WeatherService;
+  private readonly monitor?: TonyMonitor;
   private readonly intervalMs: number;
   private readonly minDelayMs: number;
   private readonly firstFireDelayMs: number;
@@ -80,6 +83,7 @@ export class FrankyAgent extends BaseAgent {
     this.store = options.store;
     this.llm = options.llm;
     this.weather = options.weather;
+    this.monitor = options.monitor;
     this.intervalMs = options.intervalMs ?? 2_700_000;      // 45 min
     this.minDelayMs = options.minDelayMs ?? 1_800_000;      // 30 min
     this.firstFireDelayMs = options.firstFireDelayMs ?? 20_000; // 20s
@@ -113,6 +117,7 @@ export class FrankyAgent extends BaseAgent {
 
   private async run(): Promise<void> {
     if (!this.active) return;
+    this.monitor?.recordHeartbeat('franky-primary', 'franky');
 
     const chatIds = await this.store.listAllChatIds();
     if (chatIds.length === 0) return;

@@ -90,7 +90,9 @@ async function main() {
     const tonyMonitor = new TonyMonitor(store, {
       checkIntervalMs: config.tonyCheckIntervalMs,
       stuckThresholdMs: config.tonyStuckThresholdMs,
+      reportIntervalMs: config.tonyReportIntervalMs,
     });
+    tonyMonitor.setChatStore(store);  // so Tony can find chat IDs for health reports
 
     // Zoro — knowledge builder (needs GitHub creds)
     let zoro: ZoroAgent | undefined;
@@ -117,17 +119,21 @@ async function main() {
 
     const ace = new AceAgent({ store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory });
 
-    const tony = new TonyAgent({ store, monitor: tonyMonitor });
-    await tony.onStart();
-    logger.info('Tony watchdog started');
-
     let jinbe: JinbeAgent | null = null;
 
     if (config.useMockTelegram) {
       logger.info('Mock Telegram mode enabled; live Telegram listener not started');
+      // Start Tony even in mock mode (just no Telegram sends)
+      const tony = new TonyAgent({ store, monitor: tonyMonitor });
+      await tony.onStart();
+      logger.info('Tony watchdog started');
     } else {
       const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
       notifier.setClient(telegramClient);
+      // Tony starts AFTER notifier has a client so its health reports reach Telegram
+      const tony = new TonyAgent({ store, monitor: tonyMonitor });
+      await tony.onStart();
+      logger.info('Tony watchdog started');
 
       // Warn if no admin chat IDs — proactive messages won't fire until user messages first
       if (config.adminChatIds.length === 0) {
@@ -180,6 +186,7 @@ async function main() {
           newsIntervalMs:     config.brookNewsIntervalMs,
           singIntervalMs:     config.brookSingIntervalMs,
           minDelayMs:         config.brookMinDelayMs,
+          monitor:            tonyMonitor,
         });
         brook.start();
         process.on('SIGINT', () => brook.stop());
@@ -194,6 +201,7 @@ async function main() {
           weather: weatherService,
           intervalMs: config.frankyChatIntervalMs,
           minDelayMs: config.frankyChatMinDelayMs,
+          monitor: tonyMonitor,
         });
         franky.start();
         process.on('SIGINT', () => franky.stop());
@@ -229,7 +237,7 @@ async function main() {
     const shutdown = async (signal: string) => {
       logger.info({ signal }, 'Shutting down gracefully...');
       zoro?.stopIndexing();
-      await tony.onStop();
+      tonyMonitor.stop();
       await jinbe?.stop(signal);
       const fileStore = store as { flush?: () => void };
       if (typeof fileStore.flush === 'function') fileStore.flush();

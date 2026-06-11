@@ -71,6 +71,7 @@ services:
       # Tony
       - TONY_CHECK_INTERVAL_MS=${TONY_CHECK_INTERVAL_MS:-10000}
       - TONY_STUCK_THRESHOLD_MS=${TONY_STUCK_THRESHOLD_MS:-120000}
+      - TONY_REPORT_INTERVAL_MS=${TONY_REPORT_INTERVAL_MS:-1800000}
       # Admin
       - ADMIN_USER_IDS=${ADMIN_USER_IDS:-}
       # Chat IDs that receive proactive messages from startup (no first-message required)

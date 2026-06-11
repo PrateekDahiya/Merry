@@ -5,6 +5,7 @@ import { TaskEnvelope } from '../types/messages.js';
 import { LlmClient } from '../llm/client.js';
 import { ChatMetadataStore } from '../persistence/store.js';
 import { notifier, ConversationStep } from '../telegram/notifier.js';
+import { TonyMonitor } from '../monitoring/monitor.js';
 import { createChildLogger } from '../logging/logger.js';
 
 const logger = createChildLogger({ component: 'brook' });
@@ -13,6 +14,7 @@ export interface BrookOptions {
   store: ChatMetadataStore;
   llm?: LlmClient;
   knowledgeDir: string;
+  monitor?: TonyMonitor;
   onepieceIntervalMs?: number;
   animeIntervalMs?: number;
   musicIntervalMs?: number;
@@ -86,6 +88,7 @@ export class BrookAgent extends BaseAgent {
   private readonly knowledgeDir: string;
   private readonly minDelayMs: number;
   private readonly llmChance: number;
+  private readonly monitor?: TonyMonitor;
   private readonly intervals: {
     onepiece: number;
     anime: number;
@@ -99,8 +102,9 @@ export class BrookAgent extends BaseAgent {
     this.store = options.store;
     this.llm = options.llm;
     this.knowledgeDir = options.knowledgeDir;
-    this.minDelayMs = options.minDelayMs ?? 900_000;             // 15 min
+    this.minDelayMs = options.minDelayMs ?? 900_000;
     this.llmChance = options.llmChance ?? 0.3;
+    this.monitor = options.monitor;
     this.intervals = {
       onepiece: options.onepieceIntervalMs ?? 14_400_000,
       anime:    options.animeIntervalMs    ?? 14_400_000,
@@ -144,6 +148,8 @@ export class BrookAgent extends BaseAgent {
   private startLoop(intervalMs: number, handler: () => Promise<void>, firstFireMs = 60_000): void {
     const fire = () => {
       if (!this.active) return;
+      // Report heartbeat to Tony so he knows Brook is alive
+      this.monitor?.recordHeartbeat('brook-primary', 'brook');
       void handler().catch(err => {
         logger.warn({ err: String(err) }, 'Brook loop error');
       }).finally(() => {
