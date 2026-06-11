@@ -2,6 +2,7 @@ import { BaseAgent } from './base.js';
 import { NamiAgent } from './nami.js';
 import { RobinAgent } from './robin.js';
 import { SanjiAgent } from './sanji.js';
+import { SpecialistOutput } from './specialists.js';
 import { AgentResult, AgentType, TaskEnvelope } from '../types/messages.js';
 import { ResultStore, TaskStore, getStore } from '../persistence/store.js';
 import { OrchestrationResult } from '../orchestrator/result.js';
@@ -147,6 +148,21 @@ export class AceAgent extends BaseAgent {
   }
 
   private extractSpecialistResponse(result: unknown): string {
+    const parsed = SpecialistOutput.safeParse(result);
+
+    if (parsed.success) {
+      return [
+        parsed.data.title,
+        parsed.data.response,
+        '',
+        `Summary: ${parsed.data.summary}`,
+        parsed.data.nextSteps.length > 0 ? `Next steps: ${parsed.data.nextSteps.join('; ')}` : '',
+        parsed.data.warnings.length > 0 ? `Warnings: ${parsed.data.warnings.join('; ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+    }
+
     if (typeof result === 'string') {
       return result;
     }

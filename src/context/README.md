@@ -1,5 +1,9 @@
 # Context Service
 
-Phase 4 will implement repository, documentation, configuration, and local context retrieval here.
+Phase 4 implements local repository, documentation, and configuration search.
 
-Phase 1 only establishes the module boundary.
+Current modules:
+
+- `repository-search.ts`: recursive text-file scanning, keyword scoring, snippet extraction, and structured `ContextResponse` creation.
+
+The searcher intentionally ignores generated and dependency directories such as `dist`, `node_modules`, and `.git`.

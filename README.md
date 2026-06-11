@@ -2,7 +2,7 @@
 
 Production-ready Telegram bot architecture for receiving Telegram messages, routing work through Ace, delegating to specialist agents, and returning final responses through Tom.
 
-Current status: Phase 3 is complete. Telegram entrypoint behavior and Ace orchestration are implemented; context retrieval, model-backed specialist work, monitoring, and durable persistence are still future phases.
+Current status: Phase 5 is complete. Telegram entrypoint behavior, Ace orchestration, Nami local context retrieval, and specialist worker contracts are implemented; monitoring and durable persistence are still future phases.
 
 ## Agents
 
@@ -47,11 +47,18 @@ Built and working:
 - Final response synthesis by Ace.
 - Telegram dispatcher now returns Ace's final response to Tom.
 - Unit tests for routing, lifecycle completion/failure, and dispatcher response flow.
+- Nami local context retrieval over repository, docs, and config text files.
+- Recursive search with ignored generated/dependency directories.
+- Keyword scoring, relative source paths, snippets, relevance scores, and summaries.
+- Runtime wiring for `CONTEXT_SEARCH_DEPTH` and `CONTEXT_MAX_RESULTS`.
+- Unit tests for context ranking, ignored directories, no-match behavior, and Nami structured responses.
+- Robin and Sanji specialist workers with distinct prompt templates and structured outputs.
+- Specialist output schema for `title`, `response`, `summary`, `nextSteps`, `warnings`, and `prompt`.
+- Ace synthesis of structured specialist results into final Telegram-ready text.
+- Unit tests for Robin and Sanji output structure.
 
 Not implemented yet:
 
-- Nami repository search.
-- Robin/Sanji model-backed specialist execution.
 - Tony runtime monitoring loop.
 - Durable database persistence.
 - Docker/deployment/admin command interface.
@@ -144,7 +151,7 @@ See `.env.example` for the full template.
 src/
   agents/          Phase 1 agent skeletons and base class
   config/          Environment loading and validation
-  context/         Phase 4 context service boundary
+  context/         Phase 4 local context search service
   logging/         Logger setup
   monitoring/      Phase 6 monitoring boundary
   orchestrator/    Phase 3 routing, result contracts, and Telegram-to-Ace dispatch
@@ -153,7 +160,7 @@ src/
   types/           Shared schemas and error types
   utils/           Shared utilities
 tests/
-  unit/            Phase 1, Phase 2, and Phase 3 unit tests
+  unit/            Phase 1 through Phase 5 unit tests
 ```
 
 ## Message Contracts
@@ -196,14 +203,14 @@ With `USE_MOCK_TELEGRAM=false`, Tom starts a Telegraf polling listener:
 3. Tom sends a typing action and replies `Checking...`.
 4. Tom creates a `TaskEnvelope` assigned to Ace.
 5. The Telegram-to-Ace dispatcher runs Ace.
-6. Ace asks Nami for context, selects Robin or Sanji, delegates the task, and synthesizes the final response.
+6. Ace asks Nami for repository context, selects Robin or Sanji, delegates the task, and synthesizes the final response.
 7. Tom sends Ace's final response back to Telegram.
 
 ## Next Phase
 
-Phase 4 is context retrieval implementation:
+Phase 6 is monitoring implementation:
 
-- Implement Nami's repository/docs/config search.
-- Return structured source paths, snippets, relevance scores, and recommendations.
-- Feed real context into Ace's specialist delegation path.
-- Add tests for context ranking and source extraction.
+- Implement Tony's runtime health checks and heartbeats.
+- Track queue latency, task age, stuck jobs, and repeated failures.
+- Emit diagnostics to Ace without modifying task content.
+- Add tests for stuck-task detection and health report generation.

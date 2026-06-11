@@ -7,6 +7,8 @@ import { loadConfig } from './config/config.js';
 import { initializeLogger, getLogger } from './logging/logger.js';
 import { initializeStore } from './persistence/store.js';
 import { TomAgent } from './agents/tom.js';
+import { AceAgent } from './agents/ace.js';
+import { NamiAgent } from './agents/nami.js';
 import { Phase2AceDispatcher } from './orchestrator/phase2-dispatcher.js';
 import { TelegrafTelegramClient } from './telegram/telegraf-client.js';
 
@@ -38,7 +40,17 @@ async function main() {
     } else {
       tom = new TomAgent({
         client: new TelegrafTelegramClient(config.telegramBotToken),
-        dispatcher: new Phase2AceDispatcher(store),
+        dispatcher: new Phase2AceDispatcher(
+          store,
+          new AceAgent({
+            store,
+            contextAgentFactory: () =>
+              new NamiAgent({
+                maxDepth: config.contextSearchDepth,
+                maxResults: config.contextMaxResults,
+              }),
+          })
+        ),
       });
 
       await tom.start();
@@ -48,7 +60,7 @@ async function main() {
     logger.info(
       {
         version: '0.1.0',
-        phase: '3 - Orchestration Layer',
+        phase: '5 - Specialist Agents',
         components: [
           'config',
           'logging',
@@ -61,12 +73,17 @@ async function main() {
           'ace-agent',
           'routing',
           'telegram-ace-dispatcher',
+          'context-search',
+          'nami-agent',
+          'specialist-contract',
+          'robin-agent',
+          'sanji-agent',
         ],
       },
-      'All Phase 1, Phase 2, and Phase 3 components initialized'
+      'All Phase 1, Phase 2, Phase 3, Phase 4, and Phase 5 components initialized'
     );
 
-    logger.info('System ready. Phases 4-9 pending implementation.');
+    logger.info('System ready. Phases 6-9 pending implementation.');
 
     // Graceful shutdown handler
     process.on('SIGINT', async () => {
