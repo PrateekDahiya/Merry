@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import Groq from 'groq-sdk';
 
 export interface LlmMessage {
   role: 'user' | 'assistant';
@@ -19,6 +20,39 @@ export interface LlmResponse {
 
 export interface LlmClient {
   chat(request: LlmRequest): Promise<LlmResponse>;
+}
+
+export class GroqClient implements LlmClient {
+  private readonly client: Groq;
+  private readonly model: string;
+
+  constructor(apiKey: string, model = 'llama-3.3-70b-versatile') {
+    this.client = new Groq({ apiKey });
+    this.model = model;
+  }
+
+  async chat(request: LlmRequest): Promise<LlmResponse> {
+    const messages: Groq.Chat.ChatCompletionMessageParam[] = [];
+
+    if (request.system) {
+      messages.push({ role: 'system', content: request.system });
+    }
+    for (const msg of request.messages) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+
+    const completion = await this.client.chat.completions.create({
+      model: this.model,
+      max_tokens: request.maxTokens ?? 2048,
+      messages,
+    });
+
+    return {
+      content: completion.choices[0]?.message?.content ?? '',
+      inputTokens: completion.usage?.prompt_tokens ?? 0,
+      outputTokens: completion.usage?.completion_tokens ?? 0,
+    };
+  }
 }
 
 export class AnthropicClient implements LlmClient {
@@ -52,8 +86,8 @@ export class AnthropicClient implements LlmClient {
 }
 
 /**
- * Deterministic mock that returns structured JSON matching SpecialistOutput.
- * Used when USE_MOCK_AGENTS=true or no API key is configured.
+ * Deterministic mock — returns structured JSON matching SpecialistOutput.
+ * Used when USE_MOCK_AGENTS=true or no API key is set.
  */
 export class MockLlmClient implements LlmClient {
   async chat(request: LlmRequest): Promise<LlmResponse> {
@@ -87,13 +121,32 @@ export class MockLlmClient implements LlmClient {
   }
 }
 
+export type LlmProvider = 'groq' | 'anthropic' | 'mock';
+
 export function createLlmClient(options: {
-  apiKey?: string;
+  provider?: LlmProvider;
+  groqApiKey?: string;
+  groqModel?: string;
+  anthropicApiKey?: string;
+  anthropicModel?: string;
   mock?: boolean;
-  model?: string;
 }): LlmClient {
-  if (options.mock || !options.apiKey) {
-    return new MockLlmClient();
+  if (options.mock) return new MockLlmClient();
+
+  const provider = options.provider ?? detectProvider(options);
+
+  if (provider === 'groq' && options.groqApiKey) {
+    return new GroqClient(options.groqApiKey, options.groqModel);
   }
-  return new AnthropicClient(options.apiKey, options.model);
+  if (provider === 'anthropic' && options.anthropicApiKey) {
+    return new AnthropicClient(options.anthropicApiKey, options.anthropicModel);
+  }
+
+  return new MockLlmClient();
+}
+
+function detectProvider(options: { groqApiKey?: string; anthropicApiKey?: string }): LlmProvider {
+  if (options.groqApiKey) return 'groq';
+  if (options.anthropicApiKey) return 'anthropic';
+  return 'mock';
 }

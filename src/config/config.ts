@@ -18,7 +18,14 @@ const configSchema = z.object({
   telegramBotToken: z.string().min(1),
   telegramWebhookSecret: z.string().default('webhook-secret'),
 
-  // LLM (Anthropic Claude)
+  // LLM provider selection
+  llmProvider: z.enum(['groq', 'anthropic', 'mock']).optional(),
+
+  // Groq
+  groqApiKey: z.string().optional(),
+  groqModel: z.string().default('llama-3.3-70b-versatile'),
+
+  // Anthropic Claude (alternative)
   anthropicApiKey: z.string().optional(),
   anthropicModel: z.string().default('claude-sonnet-4-6'),
 
@@ -76,6 +83,9 @@ export function loadConfig(): Config {
   const rawConfig = {
     telegramBotToken: env.TELEGRAM_BOT_TOKEN,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
+    llmProvider: env.LLM_PROVIDER as 'groq' | 'anthropic' | 'mock' | undefined,
+    groqApiKey: env.GROQ_API_KEY,
+    groqModel: env.GROQ_MODEL,
     anthropicApiKey: env.ANTHROPIC_API_KEY,
     anthropicModel: env.ANTHROPIC_MODEL,
     logLevel: env.LOG_LEVEL,

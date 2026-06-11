@@ -28,11 +28,16 @@ async function main() {
     logger.info({ persistenceType: config.persistenceType }, 'Persistence store initialized');
 
     const llm = createLlmClient({
-      apiKey: config.anthropicApiKey,
       mock: config.useMockAgents,
-      model: config.anthropicModel,
+      provider: config.llmProvider,
+      groqApiKey: config.groqApiKey,
+      groqModel: config.groqModel,
+      anthropicApiKey: config.anthropicApiKey,
+      anthropicModel: config.anthropicModel,
     });
-    logger.info({ mock: config.useMockAgents || !config.anthropicApiKey }, 'LLM client initialized');
+    const activeProvider = config.useMockAgents ? 'mock'
+      : (config.llmProvider ?? (config.groqApiKey ? 'groq' : config.anthropicApiKey ? 'anthropic' : 'mock'));
+    logger.info({ provider: activeProvider }, 'LLM client initialized');
 
     const tonyMonitor = new TonyMonitor(store, {
       checkIntervalMs: config.tonyCheckIntervalMs,
