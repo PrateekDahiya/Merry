@@ -12,8 +12,8 @@
     "test:run": "vitest run",
     "lint": "eslint src --ext .ts",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist",
-    "setup": "npm install && cp .env.example .env"
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "setup": "npm install && node -e \"const fs=require('fs'); if (!fs.existsSync('.env')) fs.copyFileSync('.env.example','.env')\""
   },
   "keywords": [
     "telegram",

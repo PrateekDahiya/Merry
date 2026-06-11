@@ -15,7 +15,7 @@ const logger = getLogger();
  */
 async function main() {
   try {
-    logger.info('🚀 Telegram Agent Orchestrator starting...');
+    logger.info('Telegram Agent Orchestrator starting...');
 
     // Load configuration
     const config = loadConfig();
@@ -26,21 +26,24 @@ async function main() {
 
     // Initialize persistence store
     initializeStore();
-    logger.info('✓ Persistence store initialized');
+    logger.info('Persistence store initialized');
 
     // Log all components are ready
-    logger.info({
-      version: '0.1.0',
-      phase: '1 - Foundation',
-      components: [
-        'config',
-        'logging',
-        'persistence',
-        'agent-base',
-        'message-types',
-        'error-types',
-      ],
-    }, '✓ All Phase 1 components initialized');
+    logger.info(
+      {
+        version: '0.1.0',
+        phase: '1 - Foundation',
+        components: [
+          'config',
+          'logging',
+          'persistence',
+          'agent-base',
+          'message-types',
+          'error-types',
+        ],
+      },
+      'All Phase 1 components initialized'
+    );
 
     logger.info('System ready. Phases 2-9 pending implementation.');
 

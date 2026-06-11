@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+const optionalBoolean = z.preprocess(value => {
+  if (value === undefined || value === '') {
+    return undefined;
+  }
+  if (value === 'true') {
+    return true;
+  }
+  if (value === 'false') {
+    return false;
+  }
+  return value;
+}, z.boolean());
+
 const configSchema = z.object({
   // Telegram
   telegramBotToken: z.string().min(1),
@@ -25,16 +38,26 @@ const configSchema = z.object({
   // Task management
   taskMaxConcurrent: z.number().positive().default(10),
   taskQueueSize: z.number().positive().default(1000),
-  taskPersistenceEnabled: z.boolean().default(true),
+  taskPersistenceEnabled: optionalBoolean.default(true),
 
   // Admin
-  adminUserIds: z.string().transform(s => s.split(',').map(x => parseInt(x.trim()))).default(''),
+  adminUserIds: z
+    .string()
+    .default('')
+    .transform(s =>
+      s
+        .split(',')
+        .map(x => x.trim())
+        .filter(Boolean)
+        .map(x => parseInt(x, 10))
+        .filter(Number.isFinite)
+    ),
 
   // Features
-  useMockAgents: z.boolean().default(false),
-  useMockTelegram: z.boolean().default(false),
-  enableAuditLogs: z.boolean().default(true),
-  enableTaskInspection: z.boolean().default(true),
+  useMockAgents: optionalBoolean.default(false),
+  useMockTelegram: optionalBoolean.default(false),
+  enableAuditLogs: optionalBoolean.default(true),
+  enableTaskInspection: optionalBoolean.default(true),
 });
 
 type Config = z.infer<typeof configSchema>;
@@ -56,12 +79,12 @@ export function loadConfig(): Config {
     tonyStuckThresholdMs: env.TONY_STUCK_THRESHOLD_MS ? parseInt(env.TONY_STUCK_THRESHOLD_MS) : undefined,
     taskMaxConcurrent: env.TASK_MAX_CONCURRENT ? parseInt(env.TASK_MAX_CONCURRENT) : undefined,
     taskQueueSize: env.TASK_QUEUE_SIZE ? parseInt(env.TASK_QUEUE_SIZE) : undefined,
-    taskPersistenceEnabled: env.TASK_PERSISTENCE_ENABLED === 'true',
+    taskPersistenceEnabled: env.TASK_PERSISTENCE_ENABLED,
     adminUserIds: env.ADMIN_USER_IDS,
-    useMockAgents: env.USE_MOCK_AGENTS === 'true',
-    useMockTelegram: env.USE_MOCK_TELEGRAM === 'true',
-    enableAuditLogs: env.ENABLE_AUDIT_LOGS === 'true',
-    enableTaskInspection: env.ENABLE_TASK_INSPECTION === 'true',
+    useMockAgents: env.USE_MOCK_AGENTS,
+    useMockTelegram: env.USE_MOCK_TELEGRAM,
+    enableAuditLogs: env.ENABLE_AUDIT_LOGS,
+    enableTaskInspection: env.ENABLE_TASK_INSPECTION,
   };
 
   return configSchema.parse(rawConfig);

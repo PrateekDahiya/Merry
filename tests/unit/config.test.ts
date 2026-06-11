@@ -1,7 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect } from 'vitest';
 import { loadConfig } from '../../src/config/config.js';
 
 describe('Configuration', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = {};
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
   it('should load configuration with defaults', () => {
     // Set minimal required env vars
     process.env.TELEGRAM_BOT_TOKEN = 'test-token';
@@ -13,6 +23,8 @@ describe('Configuration', () => {
     expect(config.nodeEnv).toBe('development');
     expect(config.agentTimeoutMs).toBe(30000);
     expect(config.taskMaxConcurrent).toBe(10);
+    expect(config.adminUserIds).toEqual([]);
+    expect(config.enableAuditLogs).toBe(true);
   });
 
   it('should parse integer values correctly', () => {
@@ -35,5 +47,14 @@ describe('Configuration', () => {
 
     expect(config.useMockAgents).toBe(true);
     expect(config.enableAuditLogs).toBe(false);
+  });
+
+  it('should parse comma-separated admin user IDs', () => {
+    process.env.TELEGRAM_BOT_TOKEN = 'test-token';
+    process.env.ADMIN_USER_IDS = '123, 456, invalid';
+
+    const config = loadConfig();
+
+    expect(config.adminUserIds).toEqual([123, 456]);
   });
 });
