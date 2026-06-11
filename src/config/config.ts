@@ -58,6 +58,11 @@ const configSchema = z.object({
   githubUsername: z.string().optional(),
   githubMaxResults: z.number().positive().default(5),
 
+  // Luffy agent (captain — behavioral monitoring)
+  luffyEnabled: optionalBoolean.default(true),
+  luffyCheckIntervalMs: z.number().positive().default(1_800_000),
+  luffyReportToChat: optionalBoolean.default(true),
+
   // Franky agent (inter-agent conversation director)
   frankyChatEnabled: optionalBoolean.default(true),
   frankyChatIntervalMs: z.number().positive().default(2_700_000),   // 45 min
@@ -160,6 +165,9 @@ export function loadConfig(): Config {
     githubToken: env.GITHUB_TOKEN,
     githubUsername: env.GITHUB_USERNAME,
     githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
+    luffyEnabled:         env.LUFFY_ENABLED,
+    luffyCheckIntervalMs: env.LUFFY_CHECK_INTERVAL_MS ? parseInt(env.LUFFY_CHECK_INTERVAL_MS) : undefined,
+    luffyReportToChat:    env.LUFFY_REPORT_TO_CHAT,
     frankyChatEnabled:    env.FRANKY_CHAT_ENABLED,
     frankyChatIntervalMs: env.FRANKY_CHAT_INTERVAL_MS ? parseInt(env.FRANKY_CHAT_INTERVAL_MS) : undefined,
     frankyChatMinDelayMs: env.FRANKY_CHAT_MIN_DELAY_MS ? parseInt(env.FRANKY_CHAT_MIN_DELAY_MS) : undefined,

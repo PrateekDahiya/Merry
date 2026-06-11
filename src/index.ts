@@ -19,6 +19,7 @@ import { WeatherService } from './services/weather.js';
 import { CrewScheduler } from './crew/scheduler.js';
 import { BrookAgent } from './agents/brook.js';
 import { FrankyAgent } from './agents/franky.js';
+import { LuffyAgent } from './agents/luffy.js';
 
 const logger = getLogger();
 
@@ -199,10 +200,29 @@ async function main() {
         process.on('SIGTERM', () => franky.stop());
         logger.info('Franky started — SUPER! 🔧');
       }
+
+      if (config.luffyEnabled) {
+        const luffy = new LuffyAgent({
+          store,
+          monitor: tonyMonitor,
+          zoro,
+          intervalMs: config.luffyCheckIntervalMs,
+          reportToChat: config.luffyReportToChat,
+          expectedIntervals: {
+            brook: config.brookSingIntervalMs,
+            franky: config.frankyChatIntervalMs,
+            crew: config.crewChatIntervalMs,
+          },
+        });
+        luffy.start();
+        process.on('SIGINT', () => luffy.stop());
+        process.on('SIGTERM', () => luffy.stop());
+        logger.info('Luffy started — I\'m the captain! 🍖');
+      }
     }
 
     logger.info(
-      { version: '0.6.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook', 'franky'] },
+      { version: '0.7.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook', 'franky', 'luffy'] },
       'All components initialized. System ready.'
     );
 

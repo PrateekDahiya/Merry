@@ -28,6 +28,10 @@ services:
       - PERSISTENCE_TYPE=file
       - DB_PATH=/app/data/store.json
       - AGENT_TIMEOUT_MS=${AGENT_TIMEOUT_MS:-60000}
+      # Luffy agent (captain — behavioral monitoring)
+      - LUFFY_ENABLED=${LUFFY_ENABLED:-true}
+      - LUFFY_CHECK_INTERVAL_MS=${LUFFY_CHECK_INTERVAL_MS:-1800000}
+      - LUFFY_REPORT_TO_CHAT=${LUFFY_REPORT_TO_CHAT:-true}
       # Franky agent (inter-agent conversation director)
       - FRANKY_CHAT_ENABLED=${FRANKY_CHAT_ENABLED:-true}
       - FRANKY_CHAT_INTERVAL_MS=${FRANKY_CHAT_INTERVAL_MS:-2700000}

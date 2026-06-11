@@ -28,6 +28,7 @@ export const AgentType = z.enum([
   'jinbe', // Telegram interface
   'brook',  // News herald and Soul King
   'franky', // Inter-agent conversation director
+  'luffy',  // Captain — behavioral monitoring
   'robin', // Writing agent
   'sanji', // Coding agent
   'nami',  // Context agent

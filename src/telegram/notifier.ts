@@ -40,7 +40,7 @@ export class TelegramNotifier {
   }
 }
 
-export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook' | 'franky';
+export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook' | 'franky' | 'luffy';
 
 export interface ConversationStep {
   agent: AgentVoice;
@@ -57,6 +57,18 @@ export type AgentEvent =
   | 'approval_needed';
 
 const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
+  luffy: {
+    working: [
+      "🍖 Luffy checking on the crew!",
+      "🍖 Captain's inspection time! Is everyone working?!",
+    ],
+    done: [
+      "🍖 My crew is strong! All good! GOMU GOMU NO!",
+    ],
+    error: [
+      "🍖 Oi! Something's wrong! I need to check on the crew!",
+    ],
+  },
   franky: {
     working: [
       "🔧 SUPER! Franky is building a conversation! 💪",
