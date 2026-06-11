@@ -49,9 +49,9 @@ function extractContextSummary(task: TaskEnvelope): string | undefined {
       source?: string;
       snippet?: string;
     }>;
-    for (const f of findings.slice(0, 3)) {
+    for (const f of findings.slice(0, 6)) {
       if (f.source && f.snippet) {
-        parts.push(`[${f.source}] ${f.snippet.substring(0, 300)}`);
+        parts.push(`[${f.source}]\n${f.snippet.substring(0, 600)}`);
       }
     }
   } else if (

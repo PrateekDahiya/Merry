@@ -3,12 +3,6 @@ import { TaskEnvelope } from '../types/messages.js';
 import { SpecialistOutput, callRobinLlm } from './specialists.js';
 import { LlmClient, MockLlmClient } from '../llm/client.js';
 
-/**
- * Robin - Writing Agent
- *
- * Produces clear, polished writing via a real LLM (or mock for dev/test).
- * Accepts an LlmClient; defaults to MockLlmClient when none is provided.
- */
 export class RobinAgent extends BaseAgent {
   private readonly llm: LlmClient;
 
@@ -21,7 +15,7 @@ export class RobinAgent extends BaseAgent {
     const contextSummary = extractContextSummary(task);
 
     this.logger.info(
-      { taskId: task.taskId, hasContext: Boolean(contextSummary) },
+      { taskId: task.taskId, hasContext: Boolean(contextSummary), contextLen: contextSummary?.length ?? 0 },
       'Robin processing writing task'
     );
 
@@ -33,26 +27,35 @@ function extractContextSummary(task: TaskEnvelope): string | undefined {
   const context = task.context;
   if (!context) return undefined;
 
-  const keys = Object.keys(context).filter(k => k !== 'nami' && k !== 'finalResponse');
   const namiContext = context['nami'];
-
   const parts: string[] = [];
 
-  if (
-    namiContext &&
-    typeof namiContext === 'object' &&
-    'summary' in namiContext &&
-    typeof (namiContext as Record<string, unknown>)['summary'] === 'string'
-  ) {
-    const summary = (namiContext as Record<string, unknown>)['summary'] as string;
-    if (summary) parts.push(`Repository context: ${summary}`);
+  if (namiContext && typeof namiContext === 'object') {
+    const ctx = namiContext as Record<string, unknown>;
+
+    // Include actual code/text findings — this is what the LLM should reason from
+    if (Array.isArray(ctx['findings'])) {
+      const findings = ctx['findings'] as Array<{ source?: string; snippet?: string }>;
+      for (const f of findings.slice(0, 6)) {
+        if (f.source && f.snippet) {
+          parts.push(`[${f.source}]\n${f.snippet.substring(0, 600)}`);
+        }
+      }
+    }
+
+    // Append the summary line after the snippets
+    if (typeof ctx['summary'] === 'string' && ctx['summary']) {
+      parts.push(ctx['summary']);
+    }
   }
 
-  for (const key of keys) {
+  // Any other context keys passed along (constraints, metadata hints, etc.)
+  const otherKeys = Object.keys(context).filter(k => k !== 'nami' && k !== 'finalResponse');
+  for (const key of otherKeys) {
     parts.push(`${key}: ${stringify(context[key])}`);
   }
 
-  return parts.length > 0 ? parts.join('\n') : undefined;
+  return parts.length > 0 ? parts.join('\n\n') : undefined;
 }
 
 function stringify(value: unknown): string {
