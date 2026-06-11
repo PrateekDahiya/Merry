@@ -94,22 +94,43 @@ export class GitHubContextSearch {
   }
 
   private async findRepos(terms: string[]): Promise<GitHubRepo[]> {
-    // First try: search by repo name/description matching the query terms
-    const q = `${terms.slice(0, 4).join('+')}+user:${this.username}`;
-    const searchRes = await this.get<{ items: GitHubRepo[] }>(
-      `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&per_page=5&sort=stars`,
-      false
-    );
+    // Always list all repos so we can score them locally.
+    // GitHub's search API misses repos when query terms don't exactly match
+    // the repo name/description (e.g. "youtube clone" vs repo named "yt-clone").
+    const [allRepos, searchRepos] = await Promise.allSettled([
+      this.get<GitHubRepo[]>(
+        `https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner&affiliation=owner`,
+        false
+      ),
+      this.get<{ items: GitHubRepo[] }>(
+        `https://api.github.com/search/repositories?q=${encodeURIComponent(terms.slice(0, 4).join('+'))}+user:${this.username}&per_page=5`,
+        false
+      ).then(r => r.items),
+    ]);
 
-    if (searchRes.items.length > 0) return searchRes.items;
+    const combined = new Map<string, GitHubRepo>();
 
-    // Fallback: return the user's 10 most recently pushed repos so we have
-    // something to search within when query terms don't match repo names
-    const listRes = await this.get<GitHubRepo[]>(
-      `https://api.github.com/users/${this.username}/repos?per_page=10&sort=pushed&type=owner`,
-      false
-    );
-    return listRes;
+    if (allRepos.status === 'fulfilled') {
+      for (const r of allRepos.value) combined.set(r.full_name, r);
+    }
+    if (searchRepos.status === 'fulfilled') {
+      for (const r of searchRepos.value) combined.set(r.full_name, r);
+    }
+
+    if (combined.size === 0) return [];
+
+    // Score every repo by how well its name + description match the query terms
+    const scored = Array.from(combined.values())
+      .map(repo => ({ repo, score: scoreRepo(repo, terms) }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score);
+
+    // Return top 3 matches, or if nothing scored, the 3 most recently pushed
+    if (scored.length > 0) {
+      return scored.slice(0, 3).map(s => s.repo);
+    }
+
+    return Array.from(combined.values()).slice(0, 3);
   }
 
   private async fetchRepoContext(
@@ -223,6 +244,37 @@ export class GitHubContextSearch {
 
     return res.json() as Promise<T>;
   }
+}
+
+function scoreRepo(repo: GitHubRepo, terms: string[]): number {
+  // Normalise name: "youtube-clone" → "youtube clone", "yt_clone" → "yt clone"
+  const name = repo.name.toLowerCase().replace(/[-_]/g, ' ');
+  const desc = (repo.description ?? '').toLowerCase();
+
+  let score = 0;
+  for (const term of terms) {
+    if (name.includes(term)) score += 3;       // name match is strongest signal
+    else if (name.split(' ').some(w => w.startsWith(term))) score += 2;
+    if (desc.includes(term)) score += 1;
+  }
+
+  // Bonus: common abbreviations (yt → youtube, vid → video)
+  const aliases: Record<string, string[]> = {
+    youtube: ['yt', 'ytube'],
+    video: ['vid', 'vids'],
+    clone: ['copy', 'replica'],
+    recommendation: ['rec', 'recs', 'recommend'],
+  };
+  for (const term of terms) {
+    for (const [canonical, abbrevs] of Object.entries(aliases)) {
+      if (term === canonical || abbrevs.includes(term)) {
+        const checks = [canonical, ...abbrevs];
+        if (checks.some(c => name.includes(c))) score += 2;
+      }
+    }
+  }
+
+  return score;
 }
 
 function extractTerms(query: string): string[] {
