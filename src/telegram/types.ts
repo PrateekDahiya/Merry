@@ -1,4 +1,5 @@
 import { TelegramMessageMeta, TaskEnvelope } from '../types/messages.js';
+import type { ChatMetadataStore } from '../persistence/store.js';
 
 export interface SendMessageOptions {
   replyToMessageId?: number;
@@ -20,4 +21,5 @@ export interface TomOptions {
   client: TelegramClient;
   dispatcher: TomTaskDispatcher;
   acknowledgmentText?: string;
+  store?: ChatMetadataStore;
 }

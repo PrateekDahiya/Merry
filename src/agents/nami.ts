@@ -30,6 +30,13 @@ export class NamiAgent extends BaseAgent {
   }
 
   protected async doWork(task: TaskEnvelope): Promise<ContextResponse> {
+    // Skip context lookup for casual short phrases — they don't need repo context
+    // and injecting GitHub summaries into greetings makes Robin sound like a bot
+    if (isCasualPhrase(task.userRequest)) {
+      this.logger.debug({ taskId: task.taskId }, 'Nami: casual phrase, skipping context search');
+      return { taskId: task.taskId, findings: [], summary: '', timestamp: new Date() };
+    }
+
     const sources: string[] = ['local'];
     if (this.githubSearch) sources.push('github');
 
@@ -75,4 +82,19 @@ export class NamiAgent extends BaseAgent {
 
     return context;
   }
+}
+
+// Words that appear ONLY in greetings/pleasantries — not in real queries
+const GREETING_WORDS = new Set([
+  'hello', 'hi', 'hey', 'howdy', 'greetings', 'yo', 'sup', 'hiya', 'hola',
+  'morning', 'evening', 'afternoon', 'night', 'good',
+  'bye', 'goodbye', 'later', 'ciao', 'cheers',
+  'there', 'all', 'everyone', 'guys', 'folks', 'crew', 'team',
+]);
+
+function isCasualPhrase(request: string): boolean {
+  const words = request.trim().toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  if (words.length === 0 || words.length > 3) return false;
+  // Only skip context if EVERY word in the request is a greeting word
+  return words.every(w => GREETING_WORDS.has(w));
 }

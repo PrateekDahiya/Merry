@@ -70,6 +70,18 @@ export class TomAgent extends BaseAgent {
       'Telegram message received'
     );
 
+    // Register chat so CrewScheduler knows who to message proactively
+    if (this.options.store) {
+      const existing = (await this.options.store.getChatMetadata(String(message.chatId))) ?? {};
+      void this.options.store.saveChatMetadata(String(message.chatId), {
+        ...existing,
+        chatId: String(message.chatId),
+        username: message.username,
+        firstName: message.firstName,
+        lastSeenAt: new Date().toISOString(),
+      });
+    }
+
     await this.acknowledge(message);
 
     const task = createTaskFromTelegramMessage(message);

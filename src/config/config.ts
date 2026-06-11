@@ -58,6 +58,17 @@ const configSchema = z.object({
   githubUsername: z.string().optional(),
   githubMaxResults: z.number().positive().default(5),
 
+  // Proactive crew messaging
+  crewChatEnabled: optionalBoolean.default(true),
+  crewChatIntervalMs: z.number().positive().default(1_200_000),
+  crewChatMinDelayMs: z.number().positive().default(600_000),
+  crewChatInactiveThresholdMs: z.number().positive().default(172_800_000),
+
+  // User location for weather context (optional)
+  userLatitude: z.preprocess(v => v ? parseFloat(String(v)) : undefined, z.number().optional()),
+  userLongitude: z.preprocess(v => v ? parseFloat(String(v)) : undefined, z.number().optional()),
+  userCity: z.string().optional(),
+
   // Zoro knowledge builder
   zoroEnabled: optionalBoolean.default(true),
   zoroWorkers: z.number().min(1).max(10).default(3),
@@ -127,6 +138,13 @@ export function loadConfig(): Config {
     githubToken: env.GITHUB_TOKEN,
     githubUsername: env.GITHUB_USERNAME,
     githubMaxResults: env.GITHUB_MAX_RESULTS ? parseInt(env.GITHUB_MAX_RESULTS) : undefined,
+    crewChatEnabled: env.CREW_CHAT_ENABLED,
+    crewChatIntervalMs: env.CREW_CHAT_INTERVAL_MS ? parseInt(env.CREW_CHAT_INTERVAL_MS) : undefined,
+    crewChatMinDelayMs: env.CREW_CHAT_MIN_DELAY_MS ? parseInt(env.CREW_CHAT_MIN_DELAY_MS) : undefined,
+    crewChatInactiveThresholdMs: env.CREW_CHAT_INACTIVE_THRESHOLD_MS ? parseInt(env.CREW_CHAT_INACTIVE_THRESHOLD_MS) : undefined,
+    userLatitude: env.USER_LATITUDE,
+    userLongitude: env.USER_LONGITUDE,
+    userCity: env.USER_CITY,
     zoroEnabled: env.ZORO_ENABLED,
     zoroWorkers: env.ZORO_WORKERS ? parseInt(env.ZORO_WORKERS) : undefined,
     zoroWorkerIdleMs: env.ZORO_WORKER_IDLE_MS ? parseInt(env.ZORO_WORKER_IDLE_MS) : undefined,

@@ -19,16 +19,34 @@ export class TelegramNotifier {
     if (!this.client) return;
     const text = pickMessage(agent, event);
     if (!text) return;
+    await this.sendRaw(chatId, text);
+  }
+
+  async sendRaw(chatId: number, text: string): Promise<void> {
+    if (!this.client) return;
     try {
       await this.client.sendChatAction(chatId, 'typing');
       await this.client.sendMessage(chatId, text);
     } catch (err) {
-      logger.warn({ err: String(err) }, 'Notifier send failed');
+      logger.warn({ err: String(err) }, 'Notifier sendRaw failed');
+    }
+  }
+
+  async sendSequence(chatId: number, steps: ConversationStep[]): Promise<void> {
+    for (const step of steps) {
+      if (step.delayMs > 0) await sleep(step.delayMs);
+      await this.sendRaw(chatId, step.text);
     }
   }
 }
 
-export type AgentVoice = 'ace' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony';
+export type AgentVoice = 'ace' | 'tom' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony';
+
+export interface ConversationStep {
+  agent: AgentVoice;
+  text: string;
+  delayMs: number;
+}
 export type AgentEvent =
   | 'routing'
   | 'fetching_context'
@@ -39,6 +57,12 @@ export type AgentEvent =
   | 'approval_needed';
 
 const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
+  tom: {
+    working: [
+      "⚓ Tom on it — message is in good hands.",
+      "⚓ Leave it to me. The crew's already been briefed.",
+    ],
+  },
   ace: {
     routing: [
       '🔥 Ace here — reading the situation and picking the right person for this.',
@@ -130,6 +154,10 @@ function pickMessage(agent: AgentVoice, event: AgentEvent): string | null {
   const pool = MESSAGES[agent]?.[event];
   if (!pool || pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)]!;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Global singleton so agents can use it without constructor injection

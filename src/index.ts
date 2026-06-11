@@ -15,6 +15,8 @@ import { Phase2AceDispatcher } from './orchestrator/phase2-dispatcher.js';
 import { TelegrafTelegramClient } from './telegram/telegraf-client.js';
 import { createLlmClient } from './llm/client.js';
 import { notifier } from './telegram/notifier.js';
+import { WeatherService } from './services/weather.js';
+import { CrewScheduler } from './crew/scheduler.js';
 
 const logger = getLogger();
 
@@ -114,12 +116,36 @@ async function main() {
       logger.info('Mock Telegram mode enabled; live Telegram listener not started');
     } else {
       const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
-      notifier.setClient(telegramClient);  // give all agents the ability to send status updates
+      notifier.setClient(telegramClient);
       tom = new TomAgent({
         client: telegramClient,
         dispatcher: new Phase2AceDispatcher(store, ace),
+        store,
       });
       await tom.start();
+
+      if (config.crewChatEnabled) {
+        const weather = new WeatherService({
+          latitude: config.userLatitude,
+          longitude: config.userLongitude,
+          city: config.userCity,
+        });
+        const crewScheduler = new CrewScheduler({
+          store,
+          weather,
+          llm,
+          intervalMs: config.crewChatIntervalMs,
+          minDelayMs: config.crewChatMinDelayMs,
+          inactiveThresholdMs: config.crewChatInactiveThresholdMs,
+        });
+        crewScheduler.start();
+
+        const origShutdown = process.listeners('SIGINT')[0];
+        void origShutdown;
+        process.on('SIGINT', () => crewScheduler.stop());
+        process.on('SIGTERM', () => crewScheduler.stop());
+        logger.info({ intervalMs: config.crewChatIntervalMs }, 'CrewScheduler started — crew will chat spontaneously');
+      }
     }
 
     logger.info(

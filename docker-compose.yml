@@ -28,6 +28,15 @@ services:
       - PERSISTENCE_TYPE=file
       - DB_PATH=/app/data/store.json
       - AGENT_TIMEOUT_MS=${AGENT_TIMEOUT_MS:-60000}
+      # Proactive crew chat
+      - CREW_CHAT_ENABLED=${CREW_CHAT_ENABLED:-true}
+      - CREW_CHAT_INTERVAL_MS=${CREW_CHAT_INTERVAL_MS:-1200000}
+      - CREW_CHAT_MIN_DELAY_MS=${CREW_CHAT_MIN_DELAY_MS:-600000}
+      - CREW_CHAT_INACTIVE_THRESHOLD_MS=${CREW_CHAT_INACTIVE_THRESHOLD_MS:-172800000}
+      # Weather context for crew conversations (optional)
+      - USER_CITY=${USER_CITY}
+      - USER_LATITUDE=${USER_LATITUDE}
+      - USER_LONGITUDE=${USER_LONGITUDE}
       # GitHub
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_USERNAME=${GITHUB_USERNAME}

@@ -145,4 +145,8 @@ export class FileStore implements TaskStore, ResultStore, ChatMetadataStore {
   async getChatMetadata(chatId: string): Promise<Record<string, unknown> | null> {
     return this.chatMetadata.get(chatId) ?? null;
   }
+
+  async listAllChatIds(): Promise<string[]> {
+    return Array.from(this.chatMetadata.keys());
+  }
 }
