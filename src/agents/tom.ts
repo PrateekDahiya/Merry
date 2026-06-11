@@ -5,27 +5,29 @@ import { createTaskFromTelegramMessage } from '../telegram/task-factory.js';
 import { TomOptions } from '../telegram/types.js';
 
 /**
- * Tom - Telegram Interface Agent
+ * Tom — inspired by Tom-san, the legendary shipwright who built the Oro Jackson
+ * and believed ships should bring smiles to people's faces.
  *
- * Responsibilities:
- * - Listen for incoming Telegram messages
- * - Send immediate acknowledgment/reaction
- * - Parse chat ID, message ID, sender, text, and metadata
- * - Queue or hand off task to Ace
- * - Receive final response from Ace
- * - Send response back to Telegram
- * - Support replies and formatting for long messages
- *
- * Phase 2 implements Telegram message receipt, acknowledgment, task envelope
- * creation, and handoff to Ace through a dispatcher boundary.
+ * Tom receives every incoming message, greets the user warmly, and immediately
+ * gets it to the right hands. He is the front door of the crew.
  */
+
+const ACK_MESSAGES = [
+  '⚓ Leave it to me! Routing to Ace now...',
+  '🔧 Tom on it! The crew will handle this.',
+  '⛵ Got your message! Setting sail for an answer...',
+  '🌊 Received! Passing this to Ace right away.',
+  '🏴‍☠️ Aye! The Straw Hats are on the case.',
+];
+
 export class TomAgent extends BaseAgent {
   private readonly processedMessages = new Set<string>();
   private readonly acknowledgmentText: string;
+  private ackIndex = 0;
 
   constructor(private readonly options: TomOptions) {
     super('tom-primary', 'tom');
-    this.acknowledgmentText = options.acknowledgmentText ?? 'Checking...';
+    this.acknowledgmentText = options.acknowledgmentText ?? '';
   }
 
   protected async doWork(task: TaskEnvelope): Promise<unknown> {
@@ -34,10 +36,9 @@ export class TomAgent extends BaseAgent {
     const chatId = Number(task.chatId);
     const message = typeof task.context?.telegramResponse === 'string'
       ? task.context.telegramResponse
-      : 'Task has been received.';
+      : 'Your request has been received.';
 
     await this.sendFinalResponse(chatId, message, Number(task.messageId));
-
     return { sent: true };
   }
 
@@ -64,7 +65,6 @@ export class TomAgent extends BaseAgent {
     }
 
     this.processedMessages.add(dedupeKey);
-
     this.logger.info(
       { chatId: message.chatId, messageId: message.messageId, userId: message.userId },
       'Telegram message received'
@@ -84,7 +84,9 @@ export class TomAgent extends BaseAgent {
 
   async acknowledge(message: TelegramMessageMeta): Promise<void> {
     await this.options.client.sendChatAction(message.chatId, 'typing');
-    await this.options.client.sendMessage(message.chatId, this.acknowledgmentText, {
+
+    const ack = this.acknowledgmentText || this.nextAck();
+    await this.options.client.sendMessage(message.chatId, ack, {
       replyToMessageId: message.messageId,
     });
   }
@@ -97,5 +99,11 @@ export class TomAgent extends BaseAgent {
         replyToMessageId: index === 0 ? replyToMessageId : undefined,
       });
     }
+  }
+
+  private nextAck(): string {
+    const msg = ACK_MESSAGES[this.ackIndex % ACK_MESSAGES.length]!;
+    this.ackIndex++;
+    return msg;
   }
 }

@@ -144,9 +144,9 @@ export class TonyMonitor {
     await this.emit({
       type: 'stuck_task',
       severity: stuck.length >= 3 ? 'critical' : 'warning',
-      details: `${stuck.length} task(s) have been running for over ${this.config.stuckThresholdMs / 1000}s without completing.`,
+      details: `🩺 Tony's diagnosis: ${stuck.length} task(s) have been running for over ${this.config.stuckThresholdMs / 1000}s with no signs of life. This isn't normal — I'm flagging it immediately! Affected IDs: ${taskIds.join(', ')}`,
       affectedTaskIds: taskIds,
-      suggestedAction: 'Review each task ID for deadlocks or infinite loops; consider cancelling and retrying.',
+      suggestedAction: 'Check each task for deadlocks or infinite loops. Consider cancelling and retrying. (And stop saying I\'m cute when I\'m doing serious medical work!)',
       timestamp: new Date(),
     });
   }
@@ -166,8 +166,8 @@ export class TonyMonitor {
         await this.emit({
           type: 'agent_unhealthy',
           severity: 'critical',
-          details: `Agent ${health.agentId} (${health.agentType}) has not reported in ${Math.round(silenceMs / 1000)}s.`,
-          suggestedAction: `Verify that agent ${health.agentId} is still running. Consider restarting the worker.`,
+          details: `🩺 Tony's diagnosis: ${health.agentId} (${health.agentType}) has gone silent for ${Math.round(silenceMs / 1000)}s. Vital signs: undetected. As the ship's doctor I cannot allow a crew member to be in this condition!`,
+          suggestedAction: `Verify ${health.agentId} is still running. If it crashed, restart the worker. I'll keep monitoring.`,
           timestamp: new Date(),
         });
       }
@@ -188,8 +188,8 @@ export class TonyMonitor {
       await this.emit({
         type: 'queue_overload',
         severity: queueDepth > 100 ? 'critical' : 'warning',
-        details: `Queue has ${queueDepth} unprocessed tasks (received + acknowledged).`,
-        suggestedAction: 'Consider throttling inbound messages or adding more worker capacity.',
+        details: `🩺 Tony's diagnosis: the queue has ${queueDepth} unprocessed tasks piling up. The crew is overwhelmed! This level of backlog is medically concerning.`,
+        suggestedAction: 'Throttle incoming messages or add more worker capacity before the crew collapses from exhaustion.',
         timestamp: new Date(),
       });
     }
@@ -207,8 +207,8 @@ export class TonyMonitor {
       await this.emit({
         type: 'zoro_stalled',
         severity: 'warning',
-        details: `Zoro has ${stats.pendingFiles} pending files but hasn't processed anything in ${Math.round(silenceMs / 60000)}min. Processed so far: ${stats.processedFiles} files.`,
-        suggestedAction: 'Check Zoro logs. It may have hit a GitHub rate limit or crashed.',
+        details: `🩺 Tony's diagnosis: Zoro has ${stats.pendingFiles} files still pending but hasn't moved in ${Math.round(silenceMs / 60000)} minutes. That's not focus — that's unconscious. Even Zoro can't train through a system crash.`,
+        suggestedAction: 'Check Zoro logs for rate limits or connection errors. He may need a restart to find his way back.',
         timestamp: new Date(),
       });
     }

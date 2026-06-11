@@ -2,6 +2,7 @@ import { BaseAgent } from './base.js';
 import { TaskEnvelope } from '../types/messages.js';
 import { SpecialistOutput, callSanjiLlm } from './specialists.js';
 import { LlmClient, MockLlmClient } from '../llm/client.js';
+import { notifier } from '../telegram/notifier.js';
 
 /**
  * Sanji - Coding Agent
@@ -25,6 +26,10 @@ export class SanjiAgent extends BaseAgent {
       { taskId: task.taskId, hasContext: Boolean(contextSummary) },
       'Sanji processing coding task'
     );
+
+    if (Math.random() < 0.3) {
+      void notifier.send(Number(task.chatId), 'sanji', 'working');
+    }
 
     return callSanjiLlm(this.llm, task, contextSummary);
   }

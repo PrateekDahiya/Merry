@@ -10,6 +10,7 @@ import { RoutingDecision, selectSpecialistAgent } from '../orchestrator/routing.
 import { TonyMonitor, MonitorAlert } from '../monitoring/monitor.js';
 import { LlmClient } from '../llm/client.js';
 import type { ZoroAgent } from './zoro.js';
+import { notifier } from '../telegram/notifier.js';
 
 const DESTRUCTIVE_PATTERNS = [
   'delete all', 'drop table', 'drop database', 'truncate',
@@ -64,6 +65,11 @@ export class AceAgent extends BaseAgent {
 
     await this.store.saveTask({ ...task, state: 'running', assignedAgent: 'ace' });
     await this.store.updateTaskState(task.taskId, 'waiting_for_context');
+
+    // Randomly narrate what Ace is doing (30% chance — keeps it natural, not noisy)
+    if (rarely(0.3)) {
+      void notifier.send(Number(task.chatId), 'ace', 'routing');
+    }
 
     const contextResult = await this.requestContext(task);
     await this.store.saveResult(contextResult);
@@ -177,12 +183,11 @@ export class AceAgent extends BaseAgent {
     requiresApproval: boolean,
   ): string {
     if (!specialistResult.success) {
-      return `Sorry, I couldn't complete that. ${specialistResult.error ?? 'An unknown error occurred.'}`;
+      return `🔥 Ace here — this one slipped through. ${specialistResult.error ?? 'Something went wrong on my end.'} I'll make sure it doesn't happen twice.`;
     }
 
     const parsed = SpecialistOutput.safeParse(specialistResult.result);
 
-    // User-facing response: just the answer + any warnings
     const parts: string[] = [];
 
     if (parsed.success) {
@@ -200,14 +205,13 @@ export class AceAgent extends BaseAgent {
 
     if (requiresApproval) {
       const reason = parsed.success
-        ? (parsed.data.approvalReason ?? 'This operation requires approval.')
-        : 'This operation requires approval.';
+        ? (parsed.data.approvalReason ?? 'This operation requires my approval.')
+        : 'This operation requires my approval.';
       parts.push('');
-      parts.push(`⚠️ APPROVAL REQUIRED: ${reason}`);
-      parts.push('Reply with "approve" or "cancel" to proceed.');
+      parts.push(`🔥 ACE CHECKPOINT: ${reason}`);
+      parts.push('Reply "approve" to proceed or "cancel" to abort. I won\'t let the crew act without the all-clear.');
     }
 
-    // Routing debug info goes to logs only, not to the user
     this.logger.debug(
       { agent: routing.agent, confidence: routing.confidence, reason: routing.reason },
       'Routing decision'
@@ -225,6 +229,16 @@ export class AceAgent extends BaseAgent {
       },
       `Tony alert: ${alert.details}`
     );
+    // Tony occasionally notifies in active chats (20% chance, only critical)
+    if (alert.severity === 'critical' && rarely(0.2)) {
+      const chatIds = alert.affectedTaskIds
+        ? await Promise.all(alert.affectedTaskIds.map(id => this.store.getTask(id)))
+          .then(tasks => [...new Set(tasks.filter(Boolean).map(t => Number(t!.chatId)))])
+        : [];
+      for (const chatId of chatIds) {
+        void notifier.send(chatId, 'tony', 'error');
+      }
+    }
 
     if (alert.type === 'stuck_task' && alert.affectedTaskIds) {
       for (const taskId of alert.affectedTaskIds) {
@@ -233,4 +247,9 @@ export class AceAgent extends BaseAgent {
       }
     }
   }
+}
+
+/** Returns true with the given probability (0–1). Used to randomly narrate actions. */
+function rarely(probability: number): boolean {
+  return Math.random() < probability;
 }

@@ -14,6 +14,7 @@ import { TonyMonitor } from './monitoring/monitor.js';
 import { Phase2AceDispatcher } from './orchestrator/phase2-dispatcher.js';
 import { TelegrafTelegramClient } from './telegram/telegraf-client.js';
 import { createLlmClient } from './llm/client.js';
+import { notifier } from './telegram/notifier.js';
 
 const logger = getLogger();
 
@@ -112,8 +113,10 @@ async function main() {
     if (config.useMockTelegram) {
       logger.info('Mock Telegram mode enabled; live Telegram listener not started');
     } else {
+      const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
+      notifier.setClient(telegramClient);  // give all agents the ability to send status updates
       tom = new TomAgent({
-        client: new TelegrafTelegramClient(config.telegramBotToken),
+        client: telegramClient,
         dispatcher: new Phase2AceDispatcher(store, ace),
       });
       await tom.start();

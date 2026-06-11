@@ -2,6 +2,7 @@ import { BaseAgent } from './base.js';
 import { TaskEnvelope } from '../types/messages.js';
 import { SpecialistOutput, callRobinLlm } from './specialists.js';
 import { LlmClient, MockLlmClient } from '../llm/client.js';
+import { notifier } from '../telegram/notifier.js';
 
 export class RobinAgent extends BaseAgent {
   private readonly llm: LlmClient;
@@ -18,6 +19,10 @@ export class RobinAgent extends BaseAgent {
       { taskId: task.taskId, hasContext: Boolean(contextSummary), contextLen: contextSummary?.length ?? 0 },
       'Robin processing writing task'
     );
+
+    if (Math.random() < 0.3) {
+      void notifier.send(Number(task.chatId), 'robin', 'working');
+    }
 
     return callRobinLlm(this.llm, task, contextSummary);
   }

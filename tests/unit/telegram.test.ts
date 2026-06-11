@@ -82,11 +82,10 @@ describe('TomAgent', () => {
     expect(task?.chatId).toBe('100');
     expect(dispatcher.tasks).toHaveLength(1);
     expect(client.chatActions).toEqual([{ chatId: 100, action: 'typing' }]);
-    expect(client.sentMessages[0]).toEqual({
-      chatId: 100,
-      text: 'Checking...',
-      replyToMessageId: 200,
-    });
+    // Tom now cycles through One Piece acknowledgment messages
+    expect(client.sentMessages[0]?.chatId).toBe(100);
+    expect(client.sentMessages[0]?.text).toBeTruthy();
+    expect(client.sentMessages[0]?.replyToMessageId).toBe(200);
     expect(client.sentMessages[1]).toEqual({
       chatId: 100,
       text: 'Final response',

@@ -2,6 +2,7 @@ import { BaseAgent } from './base.js';
 import { ContextResponse, TaskEnvelope } from '../types/messages.js';
 import { RepositoryContextSearch, RepositorySearchOptions } from '../context/repository-search.js';
 import { GitHubContextSearch, GitHubSearchOptions } from '../context/github-search.js';
+import { notifier } from '../telegram/notifier.js';
 
 export interface NamiOptions extends RepositorySearchOptions {
   github?: GitHubSearchOptions;
@@ -32,7 +33,11 @@ export class NamiAgent extends BaseAgent {
     const sources: string[] = ['local'];
     if (this.githubSearch) sources.push('github');
 
-    this.logger.info({ taskId: task.taskId, sources }, 'Nami retrieving context');
+    this.logger.info({ taskId: task.taskId, sources }, 'Nami charting the course — reading the winds');
+
+    if (Math.random() < 0.25) {
+      void notifier.send(Number(task.chatId), 'nami', 'fetching_context');
+    }
 
     const [localResult, githubResult] = await Promise.all([
       this.localSearch.search(task.taskId, task.userRequest),
@@ -65,7 +70,7 @@ export class NamiAgent extends BaseAgent {
         githubCount: githubResult?.findings.length ?? 0,
         totalCount: allFindings.length,
       },
-      'Nami context retrieval completed'
+      'Nami charted the course — context ready'
     );
 
     return context;

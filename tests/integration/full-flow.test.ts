@@ -72,8 +72,8 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
     const msg = makeMessage('please write a short summary of our product');
     await tom.handleIncomingMessage(msg);
 
-    const ack = client.sentMessages.find(m => m.text === 'Checking...');
-    expect(ack).toBeDefined();
+    // Tom now cycles through One Piece ack messages — just check one was sent
+    expect(client.sentMessages.length).toBeGreaterThanOrEqual(1);
 
     const finalReply = client.sentMessages.find(m => m.text.includes('Robin response'));
     expect(finalReply).toBeDefined();
@@ -109,10 +109,10 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
 
     const msg = makeMessage('write a haiku');
     await tom.handleIncomingMessage(msg);
-    await tom.handleIncomingMessage(msg);
+    const countAfterFirst = client.sentMessages.length;
 
-    const acks = client.sentMessages.filter(m => m.text === 'Checking...');
-    expect(acks).toHaveLength(1);
+    await tom.handleIncomingMessage(msg); // duplicate — should be ignored
+    expect(client.sentMessages.length).toBe(countAfterFirst); // no new messages
   });
 
   it('sends typing action before the acknowledgment', async () => {
@@ -151,6 +151,6 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
     expect(saved?.state).toBe('awaiting_approval');
 
     const response = (result.result as { finalResponse?: string })?.finalResponse ?? '';
-    expect(response).toContain('APPROVAL REQUIRED');
+    expect(response).toContain('ACE CHECKPOINT');
   });
 });
