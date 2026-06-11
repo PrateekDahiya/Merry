@@ -53,6 +53,7 @@ const configSchema = z.object({
   zoroWorkers: z.number().min(1).max(10).default(3),
   zoroWorkerIdleMs: z.number().positive().default(5_000),
   zoroDiscoveryIntervalMs: z.number().positive().default(300_000),
+  zoroRateLimitSleepMs: z.number().positive().default(60_000),
   zoroKnowledgeDir: z.string().default('./knowledge'),
 
   // Health monitoring (Tony)
@@ -115,6 +116,7 @@ export function loadConfig(): Config {
     zoroWorkers: env.ZORO_WORKERS ? parseInt(env.ZORO_WORKERS) : undefined,
     zoroWorkerIdleMs: env.ZORO_WORKER_IDLE_MS ? parseInt(env.ZORO_WORKER_IDLE_MS) : undefined,
     zoroDiscoveryIntervalMs: env.ZORO_DISCOVERY_INTERVAL_MS ? parseInt(env.ZORO_DISCOVERY_INTERVAL_MS) : undefined,
+    zoroRateLimitSleepMs: env.ZORO_RATE_LIMIT_SLEEP_MS ? parseInt(env.ZORO_RATE_LIMIT_SLEEP_MS) : undefined,
     zoroKnowledgeDir: env.ZORO_KNOWLEDGE_DIR,
     contextMaxResults: env.CONTEXT_MAX_RESULTS ? parseInt(env.CONTEXT_MAX_RESULTS) : undefined,
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,

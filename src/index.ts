@@ -65,6 +65,7 @@ async function main() {
         workers: config.zoroWorkers,
         workerIdleMs: config.zoroWorkerIdleMs,
         discoveryIntervalMs: config.zoroDiscoveryIntervalMs,
+        rateLimitSleepMs: config.zoroRateLimitSleepMs,
       });
       tonyMonitor.setZoroSource(zoro);
       zoro.startIndexing();

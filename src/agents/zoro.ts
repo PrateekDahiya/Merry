@@ -12,6 +12,7 @@ export interface ZoroOptions {
   workers?: number;
   workerIdleMs?: number;
   discoveryIntervalMs?: number;
+  rateLimitSleepMs?: number;
 }
 
 interface GitHubRepo {
@@ -69,6 +70,7 @@ export class ZoroAgent extends BaseAgent {
   private readonly workers: number;
   private readonly workerIdleMs: number;
   private readonly discoveryIntervalMs: number;
+  private readonly rateLimitSleepMs: number;
   private active = false;
 
   constructor(options: ZoroOptions) {
@@ -79,6 +81,7 @@ export class ZoroAgent extends BaseAgent {
     this.workers = options.workers ?? 3;
     this.workerIdleMs = options.workerIdleMs ?? 5_000;
     this.discoveryIntervalMs = options.discoveryIntervalMs ?? 5 * 60 * 1000;
+    this.rateLimitSleepMs = options.rateLimitSleepMs ?? 60_000;
     this.tracker = new ProgressTracker(options.knowledgeDir);
     this.writer = new KnowledgeWriter(options.knowledgeDir);
   }
@@ -225,24 +228,39 @@ Start with a # heading summarising the topic. Output markdown only.`,
   private async processFile(repo: string, filePath: string, workerId = 0): Promise<void> {
     try {
       const content = await this.fetchFileContent(repo, filePath);
+
       if (!content) {
+        // Binary or empty file — skip permanently
         this.tracker.markFileDone(repo, filePath);
         return;
       }
 
       const summary = await this.summarise(repo, filePath, content);
       const written = this.writer.writeRepoContext(repo, filePath, summary);
-
       this.tracker.markFileDone(repo, filePath);
-      const stats = this.tracker.getStats();
 
+      const stats = this.tracker.getStats();
       this.logger.info(
         { workerId, repo, filePath, written, pending: stats.pendingFiles, done: stats.processedFiles },
         'Zoro indexed file'
       );
     } catch (err) {
-      this.logger.warn({ workerId, repo, filePath, err: String(err) }, 'Zoro: file failed, skipping');
-      this.tracker.markFileDone(repo, filePath);
+      if (isRateLimitError(err)) {
+        // Release back to queue — will be retried after rate limit resets
+        this.tracker.releaseWork(repo, filePath);
+        this.logger.warn(
+          { workerId, repo, filePath, sleepMs: this.rateLimitSleepMs, err: String(err) },
+          'Zoro: rate limit hit — file released, worker sleeping'
+        );
+        await sleep(this.rateLimitSleepMs);
+      } else {
+        // Permanent error (bad encoding, missing file, parse error) — skip
+        this.tracker.markFileDone(repo, filePath);
+        this.logger.warn(
+          { workerId, repo, filePath, err: String(err) },
+          'Zoro: file failed permanently, skipping'
+        );
+      }
     }
   }
 
@@ -298,6 +316,32 @@ Start with a # heading summarising the topic. Output markdown only.`,
     if (!res.ok) throw new Error(`GitHub ${res.status}: ${await res.text()}`);
     return res.json() as Promise<T>;
   }
+}
+
+/**
+ * Returns true for transient/recoverable errors where retrying makes sense:
+ *   - HTTP 429 (Too Many Requests) from Groq, GitHub, or any API
+ *   - Rate limit messages from Groq SDK
+ *   - Network timeouts / connection resets
+ *
+ * Returns false for permanent errors that retrying won't fix:
+ *   - File not found (404)
+ *   - Permission denied (403 non-rate-limit)
+ *   - Malformed content / parse errors
+ */
+function isRateLimitError(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+  return (
+    msg.includes('rate limit') ||
+    msg.includes('rate_limit') ||
+    msg.includes('too many requests') ||
+    msg.includes('429') ||
+    msg.includes('tokens per minute') ||
+    msg.includes('requests per minute') ||
+    msg.includes('econnreset') ||
+    msg.includes('etimedout') ||
+    msg.includes('socket hang up')
+  );
 }
 
 function sleep(ms: number): Promise<void> {

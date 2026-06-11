@@ -117,6 +117,22 @@ export class ProgressTracker {
     this.save();
   }
 
+  /**
+   * Release a file back to the pending queue (e.g. rate limit hit).
+   * The file goes to the END of the queue so other files are processed first
+   * while the rate limit resets.
+   */
+  releaseWork(repo: string, filePath: string): void {
+    const r = this.data.repos[repo];
+    if (!r) return;
+
+    r.claimedFiles = r.claimedFiles.filter(f => f !== filePath);
+    if (!r.pendingFiles.includes(filePath) && !r.processedFiles.includes(filePath)) {
+      r.pendingFiles.push(filePath); // back to end — retry after other files
+    }
+    this.save();
+  }
+
   isRepoKnown(repo: string): boolean {
     return repo in this.data.repos;
   }

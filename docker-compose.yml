@@ -27,6 +27,7 @@ services:
       - ZORO_WORKERS=${ZORO_WORKERS:-3}
       - ZORO_WORKER_IDLE_MS=${ZORO_WORKER_IDLE_MS:-5000}
       - ZORO_DISCOVERY_INTERVAL_MS=${ZORO_DISCOVERY_INTERVAL_MS:-300000}
+      - ZORO_RATE_LIMIT_SLEEP_MS=${ZORO_RATE_LIMIT_SLEEP_MS:-60000}
       - ZORO_KNOWLEDGE_DIR=/app/knowledge
       # Nami context search (reads from the same knowledge volume)
       - CONTEXT_ROOT_DIR=/app/knowledge
