@@ -150,7 +150,7 @@ Start with a # heading summarising the topic.`,
     let repos: GitHubRepo[];
     try {
       repos = await this.githubGet<GitHubRepo[]>(
-        `https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner&affiliation=owner`
+        `https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner`
       );
     } catch (err) {
       this.logger.warn({ err: String(err) }, 'Zoro: could not list GitHub repos');

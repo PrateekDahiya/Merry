@@ -99,7 +99,7 @@ export class GitHubContextSearch {
     // the repo name/description (e.g. "youtube clone" vs repo named "yt-clone").
     const [allRepos, searchRepos] = await Promise.allSettled([
       this.get<GitHubRepo[]>(
-        `https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner&affiliation=owner`,
+        `https://api.github.com/user/repos?per_page=100&sort=pushed&type=owner`,
         false
       ),
       this.get<{ items: GitHubRepo[] }>(
