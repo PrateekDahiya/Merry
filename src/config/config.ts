@@ -60,7 +60,7 @@ const configSchema = z.object({
 
   // Luffy agent (captain — behavioral monitoring)
   luffyEnabled: optionalBoolean.default(true),
-  luffyCheckIntervalMs: z.number().positive().default(1_800_000),
+  luffyCheckIntervalMs: z.number().positive().default(300_000),   // 5 min
   luffyReportToChat: optionalBoolean.default(true),
 
   // Franky agent (inter-agent conversation director)

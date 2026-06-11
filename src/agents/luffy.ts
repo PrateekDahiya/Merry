@@ -81,10 +81,10 @@ export class LuffyAgent extends BaseAgent {
     this.store = options.store;
     this.monitor = options.monitor;
     this.zoro = options.zoro;
-    this.intervalMs = options.intervalMs ?? 1_800_000;        // 30 min
-    this.firstFireDelayMs = options.firstFireDelayMs ?? 45_000; // 45s
+    this.intervalMs = options.intervalMs ?? 300_000;           // 5 min
+    this.firstFireDelayMs = options.firstFireDelayMs ?? 15_000; // 15s
     this.reportToChat = options.reportToChat ?? true;
-    this.reportChance = options.reportChance ?? 0.4;
+    this.reportChance = options.reportChance ?? 0.15; // 15% per 5-min cycle ≈ chat report every ~33 min
     this.expectedBrook = options.expectedIntervals?.brook ?? 5_400_000;
     this.expectedFranky = options.expectedIntervals?.franky ?? 2_700_000;
     this.expectedCrew = options.expectedIntervals?.crew ?? 1_200_000;
@@ -114,21 +114,22 @@ export class LuffyAgent extends BaseAgent {
     const jitter = (Math.random() - 0.5) * 0.3 * this.intervalMs;
     this.timer = setTimeout(() => {
       void this.run().finally(() => this.scheduleNext());
-    }, Math.max(60_000, this.intervalMs + jitter));
+    }, Math.max(30_000, this.intervalMs + jitter));
   }
 
   private async run(): Promise<void> {
     if (!this.active) return;
 
-    const [report, chatIds] = await Promise.all([
+    const [report, chatIds, activity] = await Promise.all([
       this.inspect(),
       this.store.listAllChatIds(),
+      this.snapshotActivity(),
     ]);
 
-    // Log structured report always
+    // Always log — shows what every agent is doing right now
     logger.info(
-      { ...report, msg: undefined },
-      'Luffy captain\'s inspection complete'
+      { ...report, activity, msg: undefined },
+      'Luffy captain\'s inspection'
     );
 
     // Send chat message randomly OR always when there are concerns
@@ -146,6 +147,69 @@ export class LuffyAgent extends BaseAgent {
         }
       }
     }
+  }
+
+  // ── Live activity snapshot ────────────────────────────────────────────────
+
+  private async snapshotActivity(): Promise<Record<string, string>> {
+    const [running, delegated, waitingCtx, awaitingApproval] = await Promise.all([
+      this.store.listTasksByState('running'),
+      this.store.listTasksByState('delegated'),
+      this.store.listTasksByState('waiting_for_context'),
+      this.store.listTasksByState('awaiting_approval'),
+    ]);
+
+    const snap: Record<string, string> = {};
+
+    // Ace / Jinbe
+    const activeTasks = [...running, ...delegated, ...waitingCtx, ...awaitingApproval];
+    if (activeTasks.length > 0) {
+      snap['ace'] = `processing ${activeTasks.length} active task(s)`;
+      if (waitingCtx.length > 0) snap['nami'] = `fetching context for ${waitingCtx.length} task(s)`;
+      if (delegated.length > 0) {
+        const specialists = [...new Set(delegated.map(t => t.assignedAgent).filter(Boolean))];
+        snap['specialist'] = `${specialists.join(', ')} working on delegated task(s)`;
+      }
+    } else {
+      snap['ace'] = 'idle — waiting for messages';
+    }
+
+    if (awaitingApproval.length > 0) {
+      snap['ace'] = `waiting for user approval on ${awaitingApproval.length} task(s)`;
+    }
+
+    // Zoro
+    if (this.zoro) {
+      const stats = this.zoro.getStats();
+      if (stats.claimedFiles > 0) {
+        snap['zoro'] = `indexing ${stats.claimedFiles} file(s) right now (${stats.pendingFiles} pending)`;
+      } else if (stats.pendingFiles > 0) {
+        snap['zoro'] = `${stats.pendingFiles} files pending, workers idle`;
+      } else {
+        snap['zoro'] = `knowledge base complete (${stats.processedFiles} files indexed)`;
+      }
+    }
+
+    // Brook / Franky / Crew — show time since last action
+    snap['brook'] = await this.ageString('lastBrookMessageAt') ?? 'no activity yet';
+    snap['franky'] = await this.ageString('lastFrankyMessageAt') ?? 'no activity yet';
+    snap['crew'] = await this.ageString('lastCrewMessageAt') ?? 'no activity yet';
+
+    return snap;
+  }
+
+  private async ageString(field: string): Promise<string | null> {
+    const chatIds = await this.store.listAllChatIds();
+    let mostRecent = 0;
+    for (const chatId of chatIds) {
+      const meta = await this.store.getChatMetadata(chatId);
+      if (!meta?.[field]) continue;
+      const t = new Date(meta[field] as string).getTime();
+      if (t > mostRecent) mostRecent = t;
+    }
+    if (mostRecent === 0) return null;
+    const min = Math.round((Date.now() - mostRecent) / 60_000);
+    return min < 1 ? 'just now' : `last fired ${min} min ago`;
   }
 
   // ── Checks ────────────────────────────────────────────────────────────────
