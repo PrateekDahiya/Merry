@@ -122,6 +122,13 @@ const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
       "🌊 Jinbe at the helm — message is in safe hands.",
       "🌊 With honour, I'll see this through.",
     ],
+    done: [
+      "🌊 Jinbe: delivered with honour. Mission complete.",
+      "🌊 Steady as the sea. Done.",
+    ],
+    error: [
+      "🌊 Jinbe: something went wrong. I will not let this stand without correction.",
+    ],
   },
   ace: {
     routing: [
@@ -195,6 +202,10 @@ const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
       '⚔️ Zoro: knowledge forged. The crew can use it now.',
       '⚔️ Done. The map is complete... probably.',
     ],
+    error: [
+      '⚔️ Zoro: ran into something. I\'ll handle it.',
+      '⚔️ Obstacle. I\'ve faced worse.',
+    ],
   },
 
   tony: {
@@ -202,6 +213,10 @@ const MESSAGES: Record<AgentVoice, Partial<Record<AgentEvent, string[]>>> = {
       '🦌 Tony here — running a health check on the crew.',
       '🦌 I\'m monitoring everything. The crew is in good hands!',
       '🦌 (Don\'t call me cute — I\'m doing a serious diagnostic!)',
+    ],
+    done: [
+      '🦌 Tony: all clear! All crew members are in good health!',
+      '🦌 Doctor\'s report: healthy! (And NOT cute — I\'m a doctor!)',
     ],
     error: [
       '🦌 Tony: EMERGENCY — a crew member needs immediate attention!',

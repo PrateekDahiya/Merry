@@ -121,7 +121,7 @@ describe('AceAgent', () => {
 });
 
 describe('Phase2AceDispatcher', () => {
-  it('returns Ace final response to Tom', async () => {
+  it('returns Ace final response to Jinbe', async () => {
     const store = new InMemoryStore();
     const dispatcher = new Phase2AceDispatcher(store);
 

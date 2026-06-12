@@ -84,6 +84,15 @@ export class AceAgent extends BaseAgent {
 
     await this.store.updateTaskState(task.taskId, 'delegated');
 
+    // Build a tagged conversation chain so specialists know who said what.
+    // This prevents Sanji from confusing knowledge-base context with the user's code.
+    const namiSummary = extractNamiSummary(contextResult.result);
+    const conversationChain: Array<{ agent: string; content: string }> = [
+      { agent: 'user', content: task.userRequest },
+      { agent: 'ace',  content: `Routing to ${routing.agent}: ${routing.reason}` },
+      ...(namiSummary ? [{ agent: 'nami context', content: `Background reference from knowledge base (do NOT treat as user-provided code):\n${namiSummary}` }] : []),
+    ];
+
     const specialistTask: TaskEnvelope = {
       ...task,
       state: 'running',
@@ -92,6 +101,7 @@ export class AceAgent extends BaseAgent {
         ...task.context,
         nami: contextResult.result,
         respondAs: routing.respondAs ?? undefined,
+        conversationChain,
       },
       constraints: {
         ...task.constraints,
@@ -260,4 +270,24 @@ export class AceAgent extends BaseAgent {
 /** Returns true with the given probability (0–1). Used to randomly narrate actions. */
 function rarely(probability: number): boolean {
   return Math.random() < probability;
+}
+
+/** Extract a plain-text summary from Nami's AgentResult for the conversation chain. */
+function extractNamiSummary(namiResult: unknown): string | null {
+  if (!namiResult || typeof namiResult !== 'object') return null;
+  const r = namiResult as Record<string, unknown>;
+  const parts: string[] = [];
+
+  if (Array.isArray(r['findings'])) {
+    const findings = r['findings'] as Array<{ source?: string; snippet?: string }>;
+    for (const f of findings.slice(0, 4)) {
+      if (f.source && f.snippet) {
+        parts.push(`[${f.source}]: ${f.snippet.substring(0, 400)}`);
+      }
+    }
+  }
+  if (typeof r['summary'] === 'string' && r['summary']) {
+    parts.push(r['summary']);
+  }
+  return parts.length > 0 ? parts.join('\n\n') : null;
 }

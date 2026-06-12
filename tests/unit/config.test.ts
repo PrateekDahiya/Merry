@@ -13,7 +13,6 @@ describe('Configuration', () => {
   });
 
   it('should load configuration with defaults', () => {
-    // Set minimal required env vars
     process.env.TELEGRAM_BOT_TOKEN = 'test-token';
 
     const config = loadConfig();
@@ -22,7 +21,6 @@ describe('Configuration', () => {
     expect(config.logLevel).toBe('info');
     expect(config.nodeEnv).toBe('development');
     expect(config.agentTimeoutMs).toBe(30000);
-    expect(config.taskMaxConcurrent).toBe(10);
     expect(config.adminUserIds).toEqual([]);
     expect(config.enableAuditLogs).toBe(true);
   });
@@ -30,12 +28,10 @@ describe('Configuration', () => {
   it('should parse integer values correctly', () => {
     process.env.TELEGRAM_BOT_TOKEN = 'test-token';
     process.env.AGENT_TIMEOUT_MS = '60000';
-    process.env.TASK_MAX_CONCURRENT = '20';
 
     const config = loadConfig();
 
     expect(config.agentTimeoutMs).toBe(60000);
-    expect(config.taskMaxConcurrent).toBe(20);
   });
 
   it('should parse boolean values correctly', () => {

@@ -102,6 +102,7 @@ async function main() {
         githubToken: config.githubToken,
         githubUsername: config.githubUsername,
         llm: zoroLlm,
+        monitor: tonyMonitor,
         workers: config.zoroWorkers,
         workerIdleMs: config.zoroWorkerIdleMs,
         discoveryIntervalMs: config.zoroDiscoveryIntervalMs,

@@ -21,7 +21,7 @@ export interface FrankyOptions {
   firstFireDelayMs?: number;
 }
 
-const PARTICIPANTS: AgentVoice[] = ['ace', 'nami', 'robin', 'sanji', 'zoro', 'tony', 'brook', 'jinbe'];
+const PARTICIPANTS: AgentVoice[] = ['ace', 'nami', 'robin', 'sanji', 'zoro', 'tony', 'brook', 'jinbe', 'franky', 'luffy'];
 
 const TOPICS = [
   "Zoro getting lost on the ship again",

@@ -82,7 +82,7 @@ describe('JinbeAgent', () => {
     expect(task?.chatId).toBe('100');
     expect(dispatcher.tasks).toHaveLength(1);
     expect(client.chatActions).toEqual([{ chatId: 100, action: 'typing' }]);
-    // Tom now cycles through One Piece acknowledgment messages
+    // Jinbe now cycles through One Piece acknowledgment messages
     expect(client.sentMessages[0]?.chatId).toBe(100);
     expect(client.sentMessages[0]?.text).toBeTruthy();
     expect(client.sentMessages[0]?.replyToMessageId).toBe(200);

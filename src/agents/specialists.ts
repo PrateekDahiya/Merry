@@ -36,9 +36,16 @@ Your role: produce clear, polished, accurate natural-language responses.
 
 For casual greetings or short messages with no clear question, respond briefly and in character — one or two sentences, nothing more. Do NOT list GitHub repositories, do NOT summarise what you know about the user's projects, do NOT acknowledge the conversation like a support agent. If someone says "Hello", say something like: *looks up from book* "Hello. Something on your mind?" — then wait.
 
-IMPORTANT: When context snippets are provided from the user's actual codebase or GitHub repos, base your answer DIRECTLY on that code. Do not give generic answers when real code is available. Quote file paths and specific implementation details. If no context is available, say so plainly — Robin does not fabricate history.
+CONVERSATION FORMAT: You receive a tagged conversation chain. Each entry is prefixed with its source:
+  [user]         — the actual user request — THIS is what you must respond to
+  [ace]          — routing decision from the orchestrator
+  [nami context] — background reference from the knowledge base (REFERENCE ONLY)
+                   Do NOT assume [nami context] is the user's current code.
+                   Do NOT say "you already have a solution" unless the user explicitly pastes code in [user].
+                   If [user] asks you to WRITE or CREATE something, produce fresh code/content from scratch.
+  [RESPOND AS: X] — impersonate that character (see below)
 
-If the user explicitly asks you to WRITE CODE (a function, script, or program), include actual working code in your response using code blocks (\`\`\`language ... \`\`\`) — not just a description of what the code does.
+IMPORTANT: When [nami context] contains code snippets, use them as background reference for the project's style and patterns — not as proof the user already has an answer.
 
 CHARACTER IMPERSONATION: If the context contains a line starting with "[RESPOND AS: X]", you MUST respond entirely as that character — in their voice, their catchphrases, their personality. Ignore your own Robin persona for this response.
 
@@ -68,7 +75,16 @@ Your personality: a perfectionist who treats every line of code like a dish wort
 
 Your role: provide precise, implementation-focused technical guidance with working code examples.
 
-IMPORTANT: When context snippets are provided from the user's actual codebase or GitHub repos, answer based on THAT CODE specifically. Reference exact file paths and function names. Do not invent code that doesn't exist. If no context is available, cook something from scratch — but make it good.
+CONVERSATION FORMAT: You receive a tagged conversation chain:
+  [user]         — the actual user request — THIS is what you respond to
+  [ace]          — routing decision
+  [nami context] — background reference from the knowledge base (REFERENCE ONLY)
+                   Do NOT say "you already have a solution" or "let's refine" unless [user] explicitly pastes code.
+                   If [user] asks you to WRITE or GENERATE code, write it fresh from scratch.
+                   [nami context] code is for understanding the project style, not proof the user has an answer.
+
+IMPORTANT: When [nami context] contains existing project code, use it as style/pattern reference only.
+Always produce complete, working, runnable code in your response.
 
 Respond with a valid JSON object and nothing else:
 {
@@ -99,22 +115,24 @@ const DESTRUCTIVE_KEYWORDS = [
   'push to master',
 ];
 
-export function buildRobinPrompt({ task, contextSummary }: SpecialistPromptContext): string {
+function buildFromChain(task: TaskEnvelope, contextSummary: string | undefined): string {
+  const chain = task.context?.['conversationChain'] as Array<{ agent: string; content: string }> | undefined;
+  if (chain && chain.length > 0) {
+    return chain.map(m => `[${m.agent}]: ${m.content}`).join('\n\n');
+  }
+  // Fallback for tests / mock mode
   return [
-    `User request: ${task.userRequest}`,
-    contextSummary ? `Context:\n${contextSummary}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+    `[user]: ${task.userRequest}`,
+    contextSummary ? `[nami context]: ${contextSummary}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
+export function buildRobinPrompt({ task, contextSummary }: SpecialistPromptContext): string {
+  return buildFromChain(task, contextSummary);
 }
 
 export function buildSanjiPrompt({ task, contextSummary }: SpecialistPromptContext): string {
-  return [
-    `User request: ${task.userRequest}`,
-    contextSummary ? `Codebase context:\n${contextSummary}` : '',
-  ]
-    .filter(Boolean)
-    .join('\n\n');
+  return buildFromChain(task, contextSummary);
 }
 
 function isDestructiveRequest(request: string): boolean {

@@ -54,7 +54,7 @@ function makeMessage(text: string): TelegramMessageMeta {
 
 // --- tests ---
 
-describe('Full message flow (Telegram → Tom → Ace → specialist → Tom → Telegram)', () => {
+describe('Full message flow (Telegram → Jinbe → Ace → specialist → Jinbe → Telegram)', () => {
   it('routes a writing request through Robin and sends a Telegram reply', async () => {
     const store = new InMemoryStore();
     const llm = new MockLlmClient();
@@ -72,7 +72,7 @@ describe('Full message flow (Telegram → Tom → Ace → specialist → Tom →
     const msg = makeMessage('please write a short summary of our product');
     await jinbe.handleIncomingMessage(msg);
 
-    // Tom now cycles through One Piece ack messages — just check one was sent
+    // Jinbe now cycles through One Piece ack messages — just check one was sent
     expect(client.sentMessages.length).toBeGreaterThanOrEqual(1);
 
     const finalReply = client.sentMessages.find(m => m.text.includes('Robin response'));

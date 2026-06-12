@@ -45,8 +45,6 @@ const configSchema = z.object({
 
   // Agent behavior
   agentTimeoutMs: z.number().positive().default(30000),
-  agentMaxRetries: z.number().positive().default(3),
-  agentRetryDelayMs: z.number().positive().default(1000),
 
   // Context service
   contextRootDir: z.string().optional(),
@@ -101,11 +99,6 @@ const configSchema = z.object({
   tonyStuckThresholdMs: z.number().positive().default(60000),
   tonyReportIntervalMs: z.number().positive().default(1_800_000),  // 30 min health report
 
-  // Task management
-  taskMaxConcurrent: z.number().positive().default(10),
-  taskQueueSize: z.number().positive().default(1000),
-  taskPersistenceEnabled: optionalBoolean.default(true),
-
   // Persistence
   persistenceType: z.enum(['memory', 'file']).default('file'),
   dbPath: z.string().default('./data/store.json'),
@@ -159,8 +152,6 @@ export function loadConfig(): Config {
     logLevel: env.LOG_LEVEL,
     nodeEnv: env.NODE_ENV,
     agentTimeoutMs: env.AGENT_TIMEOUT_MS ? parseInt(env.AGENT_TIMEOUT_MS) : undefined,
-    agentMaxRetries: env.AGENT_MAX_RETRIES ? parseInt(env.AGENT_MAX_RETRIES) : undefined,
-    agentRetryDelayMs: env.AGENT_RETRY_DELAY_MS ? parseInt(env.AGENT_RETRY_DELAY_MS) : undefined,
     contextRootDir: env.CONTEXT_ROOT_DIR,
     contextSearchDepth: env.CONTEXT_SEARCH_DEPTH ? parseInt(env.CONTEXT_SEARCH_DEPTH) : undefined,
     githubToken: env.GITHUB_TOKEN,
@@ -196,9 +187,6 @@ export function loadConfig(): Config {
     tonyCheckIntervalMs: env.TONY_CHECK_INTERVAL_MS ? parseInt(env.TONY_CHECK_INTERVAL_MS) : undefined,
     tonyStuckThresholdMs: env.TONY_STUCK_THRESHOLD_MS ? parseInt(env.TONY_STUCK_THRESHOLD_MS) : undefined,
     tonyReportIntervalMs: env.TONY_REPORT_INTERVAL_MS ? parseInt(env.TONY_REPORT_INTERVAL_MS) : undefined,
-    taskMaxConcurrent: env.TASK_MAX_CONCURRENT ? parseInt(env.TASK_MAX_CONCURRENT) : undefined,
-    taskQueueSize: env.TASK_QUEUE_SIZE ? parseInt(env.TASK_QUEUE_SIZE) : undefined,
-    taskPersistenceEnabled: env.TASK_PERSISTENCE_ENABLED,
     persistenceType: env.PERSISTENCE_TYPE as 'memory' | 'file' | undefined,
     dbPath: env.DB_PATH,
     adminChatIds: env.ADMIN_CHAT_IDS,

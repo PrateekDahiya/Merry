@@ -111,13 +111,17 @@ export function selectScript(ctx: ConversationContext): ConversationScript {
 
 // ── LLM-generated conversation ────────────────────────────────────────────────
 
-const GEN_SYSTEM = `You are writing a casual group-chat conversation for a Telegram channel, between six Straw Hat Pirates characters:
+const GEN_SYSTEM = `You are writing a casual group-chat conversation for a Telegram channel, between Straw Hat Pirates characters:
 - Ace 🔥 — calm orchestrator, big-brother energy, confident
 - Nami 🗺️ — sharp navigator, witty, practical, money-smart
 - Robin 📖 — quiet archaeologist, dry wit, occasionally dark humour
 - Sanji 🍳 — passionate chef, perfectionist, dramatic about cooking
 - Zoro ⚔️ — relentless swordsman, blunt, always slightly lost, secretly caring
 - Tony 🦌 — earnest doctor, enthusiastic, offended when called cute
+- Brook 🎵💀 — skeleton musician, "Yohoho!", skull puns, Soul King, very cheerful
+- Jinbe 🌊 — calm helmsman, honourable, "With honour", steady sea references
+- Franky 🔧 — shipwright, "SUPER!", cola-powered, robot body, over-the-top
+- Luffy 🍖 — captain, "GOMU GOMU NO!", simple but deep loyalty, loves meat
 
 Rules (STRICT):
 1. Return ONLY a raw JSON array — no markdown, no explanation, no code fences.
@@ -126,7 +130,7 @@ Rules (STRICT):
 4. First object must have "delayMs": 0. Remaining: 2500 to 5000.
 5. Each message is one to two short sentences. Start with the character's emoji.
 6. Reflect the context. Sound natural and in-character.
-7. Valid agent names: ace, nami, robin, sanji, zoro, tony.`;
+7. Valid agent names: ace, nami, robin, sanji, zoro, tony, brook, jinbe, franky, luffy.`;
 
 export async function generateLlmConversation(
   llm: LlmClient,

@@ -3,12 +3,14 @@ import { TaskEnvelope } from '../types/messages.js';
 import { LlmClient, MockLlmClient } from '../llm/client.js';
 import { ProgressTracker } from '../knowledge/progress-tracker.js';
 import { KnowledgeWriter } from '../knowledge/writer.js';
+import { TonyMonitor } from '../monitoring/monitor.js';
 
 export interface ZoroOptions {
   knowledgeDir: string;
   githubToken: string;
   githubUsername: string;
   llm?: LlmClient;
+  monitor?: TonyMonitor;
   workers?: number;
   workerIdleMs?: number;
   discoveryIntervalMs?: number;
@@ -71,6 +73,7 @@ export class ZoroAgent extends BaseAgent {
   private readonly token: string;
   private readonly _username: string;
   private readonly workers: number;
+  private readonly monitor?: TonyMonitor;
   private readonly workerIdleMs: number;
   private readonly discoveryIntervalMs: number;
   private readonly rateLimitSleepMs: number;
@@ -85,6 +88,7 @@ export class ZoroAgent extends BaseAgent {
     this.workerIdleMs = options.workerIdleMs ?? 5_000;
     this.discoveryIntervalMs = options.discoveryIntervalMs ?? 5 * 60 * 1000;
     this.rateLimitSleepMs = options.rateLimitSleepMs ?? 60_000;
+    this.monitor = options.monitor;
     this.tracker = new ProgressTracker(options.knowledgeDir);
     this.writer = new KnowledgeWriter(options.knowledgeDir);
   }
@@ -224,6 +228,7 @@ Max 200 words. Start with a # heading naming the topic. Markdown only. No fluff,
     this.logger.debug({ workerId }, 'Zoro worker started');
 
     while (this.active) {
+      this.monitor?.recordHeartbeat('zoro-primary', 'zoro');
       const work = this.tracker.claimNextWork();
 
       if (!work) {
