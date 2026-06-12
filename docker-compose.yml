@@ -59,7 +59,8 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - GITHUB_USERNAME=${GITHUB_USERNAME}
       - GITHUB_MAX_RESULTS=${GITHUB_MAX_RESULTS:-5}
-      # Zoro knowledge builder
+      # Zoro knowledge builder (+ web search enrichment)
+      - ZORO_WEB_SEARCH_ENABLED=${ZORO_WEB_SEARCH_ENABLED:-true}
       - ZORO_ENABLED=${ZORO_ENABLED:-true}
       - ZORO_WORKERS=${ZORO_WORKERS:-3}
       - ZORO_WORKER_IDLE_MS=${ZORO_WORKER_IDLE_MS:-5000}

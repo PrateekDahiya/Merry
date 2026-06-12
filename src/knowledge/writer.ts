@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -37,6 +37,29 @@ export class KnowledgeWriter {
     const header = buildHeader(repo, repoSlug, filePath);
     writeFileSync(fullPath, `${header}\n\n${content}`, 'utf-8');
     return fullPath;
+  }
+
+  writeWebContent(topic: string, source: string, content: string): string {
+    const dir = join(this.knowledgeDir, 'web');
+    mkdirSync(dir, { recursive: true });
+
+    const date = new Date().toISOString().slice(0, 10);
+    const slug = slugify(topic).slice(0, 60);
+    const fileName = `${slug}-${date}.md`;
+    const fullPath = join(dir, fileName);
+
+    // Prepend searchable header so Nami can find and identify the source
+    const header = `# ${topic}\n\nsource: ${source} | topic: ${topic} | date: ${date}`;
+    writeFileSync(fullPath, `${header}\n\n${content}`, 'utf-8');
+    return fullPath;
+  }
+
+  /** Returns true if a web file for this topic+date already exists (dedup). */
+  webContentExists(topic: string): boolean {
+    const dir = join(this.knowledgeDir, 'web');
+    const date = new Date().toISOString().slice(0, 10);
+    const slug = slugify(topic).slice(0, 60);
+    return existsSync(join(dir, `${slug}-${date}.md`));
   }
 
   writeInteractionContext(question: string, content: string): string {

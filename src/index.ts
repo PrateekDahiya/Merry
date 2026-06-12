@@ -103,6 +103,7 @@ async function main() {
         githubUsername: config.githubUsername,
         llm: zoroLlm,
         monitor: tonyMonitor,
+        webSearchEnabled: config.zoroWebSearchEnabled,
         workers: config.zoroWorkers,
         workerIdleMs: config.zoroWorkerIdleMs,
         discoveryIntervalMs: config.zoroDiscoveryIntervalMs,

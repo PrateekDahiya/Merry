@@ -15,6 +15,7 @@ export interface ZoroOptions {
   workerIdleMs?: number;
   discoveryIntervalMs?: number;
   rateLimitSleepMs?: number;
+  webSearchEnabled?: boolean;
 }
 
 interface GitHubRepo {
@@ -77,6 +78,7 @@ export class ZoroAgent extends BaseAgent {
   private readonly workerIdleMs: number;
   private readonly discoveryIntervalMs: number;
   private readonly rateLimitSleepMs: number;
+  private readonly webSearchEnabled: boolean;
   private active = false;
 
   constructor(options: ZoroOptions) {
@@ -88,6 +90,7 @@ export class ZoroAgent extends BaseAgent {
     this.workerIdleMs = options.workerIdleMs ?? 5_000;
     this.discoveryIntervalMs = options.discoveryIntervalMs ?? 5 * 60 * 1000;
     this.rateLimitSleepMs = options.rateLimitSleepMs ?? 60_000;
+    this.webSearchEnabled = options.webSearchEnabled ?? true;
     this.monitor = options.monitor;
     this.tracker = new ProgressTracker(options.knowledgeDir);
     this.writer = new KnowledgeWriter(options.knowledgeDir);
@@ -136,6 +139,94 @@ Max 200 words. Start with a # heading naming the topic. Markdown only. No fluff,
       this.logger.info({ filePath }, 'Zoro wrote interaction context');
     } catch (err) {
       this.logger.warn({ err: String(err) }, 'Zoro: interaction recording failed');
+    }
+
+    // Enrich knowledge base with web search for this topic (fire and forget)
+    if (this.webSearchEnabled) {
+      void this.enrichFromWeb(question);
+    }
+  }
+
+  // ── Web knowledge enrichment ──────────────────────────────────────────────
+
+  private async enrichFromWeb(question: string): Promise<void> {
+    try {
+      const topic = await this.extractSearchTopic(question);
+      if (!topic || topic.length < 3) return;
+
+      // Dedup: skip if we already searched this topic today
+      if (this.writer.webContentExists(topic)) {
+        this.logger.debug({ topic }, 'Zoro: web content already exists for today, skipping');
+        return;
+      }
+
+      // Try Wikipedia first, then DuckDuckGo
+      const wiki = await this.searchWikipedia(topic);
+      if (wiki) {
+        const content = `${wiki.summary}`;
+        const filePath = this.writer.writeWebContent(topic, 'Wikipedia', content);
+        this.logger.info({ topic, source: 'Wikipedia', filePath }, 'Zoro: web knowledge enriched');
+        return;
+      }
+
+      const ddg = await this.searchDuckDuckGo(question);
+      if (ddg?.summary) {
+        const content = `${ddg.summary}\n\nSource: ${ddg.source ?? 'DuckDuckGo'}`;
+        const filePath = this.writer.writeWebContent(topic, ddg.source ?? 'DuckDuckGo', content);
+        this.logger.info({ topic, source: 'DuckDuckGo', filePath }, 'Zoro: web knowledge enriched');
+      }
+    } catch (err) {
+      this.logger.debug({ err: String(err) }, 'Zoro: web enrichment failed (non-critical)');
+    }
+  }
+
+  private async extractSearchTopic(question: string): Promise<string | null> {
+    if (!this.llm) return null;
+    try {
+      const res = await this.llm.chat({
+        system: `Extract the main searchable topic from this text as 2-5 words suitable for a Wikipedia search.
+Return ONLY the topic words, nothing else. No punctuation.
+Examples: "write fibonacci in python" → "fibonacci algorithm"
+         "how does react hooks work" → "react hooks"
+         "Hi brook" → ""  (return empty for greetings/chats)`,
+        messages: [{ role: 'user', content: question }],
+        maxTokens: 15,
+      });
+      const topic = res.content.trim().toLowerCase().replace(/[^\w\s]/g, '').trim();
+      return topic.length > 2 ? topic : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async searchWikipedia(topic: string): Promise<{ title: string; summary: string } | null> {
+    try {
+      const url = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(topic)}`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'merry-telegram-bot/1.0 (+https://github.com/PrateekDahiya/Merry)' },
+      });
+      if (res.status === 404) return null;
+      if (!res.ok) return null;
+      const data = await res.json() as { extract?: string; title?: string };
+      if (!data.extract || data.extract.length < 50) return null;
+      return { title: data.title ?? topic, summary: data.extract };
+    } catch {
+      return null;
+    }
+  }
+
+  private async searchDuckDuckGo(query: string): Promise<{ summary: string; source?: string } | null> {
+    try {
+      const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'merry-telegram-bot/1.0' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json() as { Abstract?: string; AbstractSource?: string };
+      if (!data.Abstract || data.Abstract.length < 30) return null;
+      return { summary: data.Abstract, source: data.AbstractSource };
+    } catch {
+      return null;
     }
   }
 

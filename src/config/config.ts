@@ -91,6 +91,7 @@ const configSchema = z.object({
 
   // Zoro knowledge builder
   zoroEnabled: optionalBoolean.default(true),
+  zoroWebSearchEnabled: optionalBoolean.default(true),
   zoroWorkers: z.number().min(1).max(10).default(3),
   zoroWorkerIdleMs: z.number().positive().default(5_000),
   zoroDiscoveryIntervalMs: z.number().positive().default(300_000),
@@ -182,6 +183,7 @@ export function loadConfig(): Config {
     userLongitude: env.USER_LONGITUDE,
     userCity: env.USER_CITY,
     zoroEnabled: env.ZORO_ENABLED,
+    zoroWebSearchEnabled: env.ZORO_WEB_SEARCH_ENABLED,
     zoroWorkers: env.ZORO_WORKERS ? parseInt(env.ZORO_WORKERS) : undefined,
     zoroWorkerIdleMs: env.ZORO_WORKER_IDLE_MS ? parseInt(env.ZORO_WORKER_IDLE_MS) : undefined,
     zoroDiscoveryIntervalMs: env.ZORO_DISCOVERY_INTERVAL_MS ? parseInt(env.ZORO_DISCOVERY_INTERVAL_MS) : undefined,
