@@ -42,12 +42,14 @@ export class AceAgent extends BaseAgent {
   private readonly specialistFactories: Partial<Record<AgentType, AgentFactory>>;
   private readonly monitor?: TonyMonitor;
   private readonly zoro?: ZoroAgent;
+  private readonly llm?: LlmClient;
 
   constructor(options: AceAgentOptions = {}) {
     super('ace-primary', 'ace');
     this.store = options.store ?? getStore();
     this.monitor = options.monitor;
     this.zoro = options.zoro;
+    this.llm = options.llm;
 
     this.contextAgentFactory = options.contextAgentFactory ?? (() => new NamiAgent());
     this.specialistFactories = options.specialistFactories ?? {
@@ -71,10 +73,13 @@ export class AceAgent extends BaseAgent {
       void notifier.send(Number(task.chatId), 'ace', 'routing');
     }
 
-    const contextResult = await this.requestContext(task);
+    // Run Nami context fetch + LLM routing classification in parallel — zero latency cost
+    const [contextResult, routing] = await Promise.all([
+      this.requestContext(task),
+      selectSpecialistAgent(task.userRequest, this.llm),
+    ]);
     await this.store.saveResult(contextResult);
 
-    const routing = selectSpecialistAgent(task.userRequest);
     const specialist = this.createSpecialist(routing);
 
     await this.store.updateTaskState(task.taskId, 'delegated');

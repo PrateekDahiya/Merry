@@ -56,10 +56,13 @@ const AGENT_LABELS: Record<AgentVoice, string> = {
 };
 
 function labelMessage(agent: AgentVoice, text: string): string {
-  // Use inline format: "*🔥 Ace:* message text" — no newline, no double-naming
   const label = AGENT_LABELS[agent];
-  // Strip any leading "AgentName: " the message might already include
-  const clean = text.replace(/^[🔥🌊🗺️📖🍳⚔️🦌🎵🔧🍖]\s*\w+:\s*/u, '').trimStart();
+  // Strip any leading emoji(s) from the message (the label already adds the emoji)
+  // Then strip any remaining "Name: " or "Name " prefix
+  const clean = text
+    .replace(/^[🔥🌊🗺️📖🍳⚔️🦌🎵🔧🍖⚓]+\s*/u, '')   // strip leading emoji(s)
+    .replace(/^\w+[:\s]+/, '')                             // strip "Name: " or "Name " if present
+    .trimStart();
   return `*${label}:* ${clean}`;
 }
 

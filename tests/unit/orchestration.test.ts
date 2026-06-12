@@ -35,15 +35,16 @@ function createTask(overrides: Partial<TaskEnvelope> = {}): TaskEnvelope {
 }
 
 describe('specialist routing', () => {
-  it('routes coding requests to Sanji', () => {
-    const decision = selectSpecialistAgent('Please debug this TypeScript API error');
+  it('routes coding requests to Sanji', async () => {
+    // No LLM provided → falls back to keyword routing
+    const decision = await selectSpecialistAgent('Please debug this TypeScript API error');
 
     expect(decision.agent).toBe('sanji');
     expect(decision.confidence).toBeGreaterThan(0.5);
   });
 
-  it('routes writing requests to Robin', () => {
-    const decision = selectSpecialistAgent('Please rewrite and summarize this article');
+  it('routes writing requests to Robin', async () => {
+    const decision = await selectSpecialistAgent('Please rewrite and summarize this article');
 
     expect(decision.agent).toBe('robin');
     expect(decision.confidence).toBeGreaterThan(0.5);
