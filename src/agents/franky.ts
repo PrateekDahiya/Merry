@@ -54,9 +54,9 @@ Rules (STRICT):
 6. Character emojis and voices:
    ace(🔥) calm+confident, nami(🗺️) sharp+practical, robin(📖) calm+dry wit,
    sanji(🍳) passionate+perfectionist, zoro(⚔️) terse+training-obsessed,
-   tony(🦌) enthusiastic doctor, brook(🎵💀) yohoho+skull puns, jinbe(🌊) honourable+calm
-7. Franky himself may appear: { "agent": "franky", "text": "🔧 SUPER! ...", "delayMs": ... }
-8. Valid agent names (lowercase): ace, nami, robin, sanji, zoro, tony, brook, jinbe, franky`;
+   tony(🦌) enthusiastic doctor, brook(🎵💀) yohoho+skull puns, jinbe(🌊) honourable+calm,
+   luffy(🍖) captain+simple+deeply loyal, franky(🔧) SUPER!+cola-powered
+8. Valid agent names (lowercase): ace, nami, robin, sanji, zoro, tony, brook, jinbe, franky, luffy`;
 
 /**
  * Franky — Inter-agent Conversation Director.

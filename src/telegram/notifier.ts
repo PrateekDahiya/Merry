@@ -56,7 +56,8 @@ const AGENT_LABELS: Record<AgentVoice, string> = {
 };
 
 function labelMessage(agent: AgentVoice, text: string): string {
-  const label = AGENT_LABELS[agent];
+  // Fallback: if LLM returns an unknown agent name, capitalise it rather than show 'undefined'
+  const label = AGENT_LABELS[agent] ?? `${String(agent).charAt(0).toUpperCase()}${String(agent).slice(1)}`;
   // Strip any leading emoji(s) from the message (the label already adds the emoji)
   // Then strip any remaining "Name: " or "Name " prefix
   const clean = text
