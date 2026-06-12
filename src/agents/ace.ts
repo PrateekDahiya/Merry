@@ -27,6 +27,7 @@ interface AceAgentOptions {
   monitor?: TonyMonitor;
   llm?: LlmClient;
   zoro?: ZoroAgent;
+  chatHistoryTurns?: number;   // how many previous user+assistant pairs to include
 }
 
 /**
@@ -43,6 +44,7 @@ export class AceAgent extends BaseAgent {
   private readonly monitor?: TonyMonitor;
   private readonly zoro?: ZoroAgent;
   private readonly llm?: LlmClient;
+  private readonly chatHistoryTurns: number;
 
   constructor(options: AceAgentOptions = {}) {
     super('ace-primary', 'ace');
@@ -50,6 +52,7 @@ export class AceAgent extends BaseAgent {
     this.monitor = options.monitor;
     this.zoro = options.zoro;
     this.llm = options.llm;
+    this.chatHistoryTurns = options.chatHistoryTurns ?? 5;
 
     this.contextAgentFactory = options.contextAgentFactory ?? (() => new NamiAgent());
     this.specialistFactories = options.specialistFactories ?? {
@@ -85,9 +88,14 @@ export class AceAgent extends BaseAgent {
     await this.store.updateTaskState(task.taskId, 'delegated');
 
     // Build a tagged conversation chain so specialists know who said what.
-    // This prevents Sanji from confusing knowledge-base context with the user's code.
-    const namiSummary = extractNamiSummary(contextResult.result);
+    // Includes recent chat history so agents have memory of the ongoing conversation.
+    const [namiSummary, history] = await Promise.all([
+      Promise.resolve(extractNamiSummary(contextResult.result)),
+      this.fetchChatHistory(task.chatId, task.taskId),
+    ]);
+
     const conversationChain: Array<{ agent: string; content: string }> = [
+      ...history,   // ← recent turns first (oldest → newest)
       { agent: 'user', content: task.userRequest },
       { agent: 'ace',  content: `Routing to ${routing.agent}: ${routing.reason}` },
       ...(namiSummary ? [{ agent: 'nami context', content: `Background reference from knowledge base (do NOT treat as user-provided code):\n${namiSummary}` }] : []),
@@ -263,6 +271,56 @@ export class AceAgent extends BaseAgent {
         await this.store.updateTaskState(taskId, 'stuck');
         this.logger.info({ taskId }, 'Ace marked stuck task');
       }
+    }
+  }
+
+  /**
+   * Retrieves recent completed turns for this chat and formats them as
+   * [prev user] / [prev assistant] chain entries.
+   * Hard limits: 500 chars per response, 2000 chars total — keeps history lean.
+   */
+  private async fetchChatHistory(
+    chatId: string,
+    currentTaskId: string,
+  ): Promise<Array<{ agent: string; content: string }>> {
+    if (this.chatHistoryTurns === 0) return [];
+
+    const RESPONSE_MAX = 500;
+    const HISTORY_MAX = 2000;
+
+    try {
+      const recent = await this.store.listTasksByChatId(chatId, (this.chatHistoryTurns + 1) * 3);
+      const completed = recent
+        .filter(t => t.state === 'completed' && t.taskId !== currentTaskId)
+        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        .slice(-this.chatHistoryTurns);
+
+      const entries: Array<{ agent: string; content: string }> = [];
+      let totalChars = 0;
+
+      for (const t of completed) {
+        const response = typeof t.context?.['finalResponse'] === 'string'
+          ? t.context['finalResponse'] as string
+          : null;
+        if (!response) continue;
+
+        const userContent = t.userRequest;
+        const assistantContent = response.length > RESPONSE_MAX
+          ? response.substring(0, RESPONSE_MAX) + '...'
+          : response;
+
+        totalChars += userContent.length + assistantContent.length;
+        if (totalChars > HISTORY_MAX) break;
+
+        entries.push(
+          { agent: 'prev user',      content: userContent },
+          { agent: 'prev assistant', content: assistantContent },
+        );
+      }
+
+      return entries;
+    } catch {
+      return [];   // history is optional — never break the main flow
     }
   }
 }

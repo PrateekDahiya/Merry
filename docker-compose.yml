@@ -28,6 +28,8 @@ services:
       - PERSISTENCE_TYPE=file
       - DB_PATH=/app/data/store.json
       - AGENT_TIMEOUT_MS=${AGENT_TIMEOUT_MS:-60000}
+      # Chat history memory
+      - CHAT_HISTORY_TURNS=${CHAT_HISTORY_TURNS:-5}
       # Luffy agent (captain — behavioral monitoring)
       - LUFFY_ENABLED=${LUFFY_ENABLED:-true}
       - LUFFY_CHECK_INTERVAL_MS=${LUFFY_CHECK_INTERVAL_MS:-300000}

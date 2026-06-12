@@ -118,7 +118,7 @@ async function main() {
       logger.info('Zoro disabled (needs GITHUB_TOKEN + GITHUB_USERNAME + ZORO_ENABLED=true)');
     }
 
-    const ace = new AceAgent({ store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory });
+    const ace = new AceAgent({ store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory, chatHistoryTurns: config.chatHistoryTurns });
 
     let jinbe: JinbeAgent | null = null;
 
