@@ -206,6 +206,7 @@ async function main() {
           store,
           llm,
           weather: weatherService,
+          knowledgeDir: config.userProfileEnabled ? config.zoroKnowledgeDir : undefined,
           intervalMs: config.frankyChatIntervalMs,
           minDelayMs: config.frankyChatMinDelayMs,
           monitor: tonyMonitor,

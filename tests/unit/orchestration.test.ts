@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AceAgent } from '../../src/agents/ace.js';
 import { BaseAgent } from '../../src/agents/base.js';
 import { Phase2AceDispatcher } from '../../src/orchestrator/phase2-dispatcher.js';
 import { selectSpecialistAgent } from '../../src/orchestrator/routing.js';
 import { InMemoryStore } from '../../src/persistence/store.js';
 import { TaskEnvelope } from '../../src/types/messages.js';
+import { MockLlmClient } from '../../src/llm/client.js';
 
 class StubAgent extends BaseAgent {
   constructor(
@@ -35,19 +36,59 @@ function createTask(overrides: Partial<TaskEnvelope> = {}): TaskEnvelope {
 }
 
 describe('specialist routing', () => {
-  it('routes coding requests to Sanji', async () => {
-    // No LLM provided → falls back to keyword routing
+  it('routes coding requests to Sanji (keyword fallback)', async () => {
     const decision = await selectSpecialistAgent('Please debug this TypeScript API error');
-
     expect(decision.agent).toBe('sanji');
     expect(decision.confidence).toBeGreaterThan(0.5);
   });
 
-  it('routes writing requests to Robin', async () => {
+  it('routes writing requests to Robin (keyword fallback)', async () => {
     const decision = await selectSpecialistAgent('Please rewrite and summarize this article');
-
     expect(decision.agent).toBe('robin');
     expect(decision.confidence).toBeGreaterThan(0.5);
+  });
+
+  it('uses LLM classification when LLM returns valid answer', async () => {
+    const llm = new MockLlmClient();
+    vi.spyOn(llm, 'chat').mockResolvedValueOnce({ content: 'sanji', inputTokens: 5, outputTokens: 1 });
+
+    const decision = await selectSpecialistAgent('make me a pizza', llm);
+    expect(decision.agent).toBe('sanji');
+    expect(decision.confidence).toBe(0.9);
+    expect(decision.reason).toContain('LLM');
+  });
+
+  it('falls back to keyword routing when LLM returns unexpected output', async () => {
+    const llm = new MockLlmClient();
+    vi.spyOn(llm, 'chat').mockResolvedValueOnce({ content: 'randomgibberish', inputTokens: 5, outputTokens: 1 });
+
+    const decision = await selectSpecialistAgent('debug this typescript error', llm);
+    expect(decision.agent).toBe('sanji');              // keyword fallback still correct
+    expect(decision.reason).not.toContain('LLM');      // keyword reason, not LLM path
+  });
+
+  it('falls back to keyword routing when LLM throws', async () => {
+    const llm = new MockLlmClient();
+    vi.spyOn(llm, 'chat').mockRejectedValueOnce(new Error('API down'));
+
+    const decision = await selectSpecialistAgent('write code for sorting', llm);
+    expect(decision.agent).toBe('sanji');
+  });
+
+  it('detects crew member addressing and sets respondAs', async () => {
+    const decision = await selectSpecialistAgent('Hey Zoro what are you up to');
+    expect(decision.respondAs).toBe('zoro');
+  });
+
+  it('detects Brook from yohoho keyword', async () => {
+    const decision = await selectSpecialistAgent('yohoho sing a song');
+    expect(decision.respondAs).toBe('brook');
+  });
+
+  it('tie between coding and writing keywords routes to Sanji', async () => {
+    // "write code" — 1 writing + 1 coding → tie → Sanji (not Robin)
+    const decision = await selectSpecialistAgent('write code for fibonacci');
+    expect(decision.agent).toBe('sanji');
   });
 });
 

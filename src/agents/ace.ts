@@ -346,8 +346,8 @@ const QUESTION_WORDS = /\b(what|how|why|when|where|who|which|can|could|would|sho
 const CREW_FIRST_NAMES_ACE = new Set(['ace','jinbe','nami','robin','sanji','zoro','tony','brook','franky','luffy','chopper']);
 const GREETING_FIRST_WORDS = new Set(['hello','hi','hey','howdy','yo','sup','hiya','good','bye','yohoho','nakama','super']);
 
-/** Returns true for short casual greetings that don't need history or context. */
-function isCasualRequest(request: string): boolean {
+/** Returns true for short casual greetings that don't need history or context. Exported for testing. */
+export function isCasualRequest(request: string): boolean {
   const trimmed = request.trim();
   if (trimmed.length > 40) return false;                   // longer messages always get history
   if (QUESTION_WORDS.test(trimmed)) return false;           // questions get history
@@ -359,9 +359,9 @@ function isCasualRequest(request: string): boolean {
 
 /**
  * Extracts a compact single-line summary from the user profile markdown.
- * Returns null if no profile or no "Known About" section.
+ * Returns null if no profile or no "Known About" section. Exported for testing.
  */
-function summariseUserProfile(profileText: string | null): string | null {
+export function summariseUserProfile(profileText: string | null): string | null {
   if (!profileText) return null;
   const lines = profileText.split('\n');
   const bullets = lines

@@ -7,6 +7,7 @@ import { WeatherService } from '../services/weather.js';
 import { getClockContext } from '../services/clock.js';
 import { selectScript } from '../crew/conversations.js';
 import { TonyMonitor } from '../monitoring/monitor.js';
+import { KnowledgeWriter } from '../knowledge/writer.js';
 import { createChildLogger } from '../logging/logger.js';
 
 const logger = createChildLogger({ component: 'franky' });
@@ -16,6 +17,7 @@ export interface FrankyOptions {
   llm: LlmClient;
   weather?: WeatherService;
   monitor?: TonyMonitor;
+  knowledgeDir?: string;
   intervalMs?: number;
   minDelayMs?: number;
   firstFireDelayMs?: number;
@@ -74,6 +76,7 @@ export class FrankyAgent extends BaseAgent {
   private readonly llm: LlmClient;
   private readonly weather?: WeatherService;
   private readonly monitor?: TonyMonitor;
+  private readonly profileWriter?: KnowledgeWriter;
   private readonly intervalMs: number;
   private readonly minDelayMs: number;
   private readonly firstFireDelayMs: number;
@@ -84,6 +87,7 @@ export class FrankyAgent extends BaseAgent {
     this.llm = options.llm;
     this.weather = options.weather;
     this.monitor = options.monitor;
+    this.profileWriter = options.knowledgeDir ? new KnowledgeWriter(options.knowledgeDir) : undefined;
     this.intervalMs = options.intervalMs ?? 2_700_000;      // 45 min
     this.minDelayMs = options.minDelayMs ?? 1_800_000;      // 30 min
     this.firstFireDelayMs = options.firstFireDelayMs ?? 20_000; // 20s
@@ -140,9 +144,8 @@ export class FrankyAgent extends BaseAgent {
       return;
     }
 
-    const script = await this.buildConversation();
-
     for (const chatId of eligible) {
+      const script = await this.buildConversation(chatId);
       try {
         await notifier.sendSequence(Number(chatId), script);
         const meta = (await this.store.getChatMetadata(chatId)) ?? {};
@@ -157,9 +160,9 @@ export class FrankyAgent extends BaseAgent {
     }
   }
 
-  private async buildConversation(): Promise<ConversationStep[]> {
+  private async buildConversation(chatId?: string): Promise<ConversationStep[]> {
     const participants = this.pickParticipants();
-    const topic = await this.pickTopic();
+    const topic = await this.pickTopic(chatId);
 
     logger.debug({ participants, topic }, 'Franky: generating conversation');
 
@@ -196,7 +199,7 @@ export class FrankyAgent extends BaseAgent {
     return shuffled.slice(0, count).map(p => String(p));
   }
 
-  private async pickTopic(): Promise<string> {
+  private async pickTopic(chatId?: string): Promise<string> {
     // 30% chance of weather-based topic
     if (this.weather && Math.random() < 0.3) {
       const w = await this.weather.getCurrentWeather().catch(() => null);
@@ -206,6 +209,32 @@ export class FrankyAgent extends BaseAgent {
         return `the pleasant ${w.condition.toLowerCase()} weather today`;
       }
     }
+    // 25% chance of user-interest-based topic (if profile available)
+    if (chatId && this.profileWriter && Math.random() < 0.25) {
+      const interest = extractRandomInterest(this.profileWriter.readUserProfile(chatId));
+      if (interest) return interest;
+    }
     return TOPICS[Math.floor(Math.random() * TOPICS.length)]!;
   }
+}
+
+/** Pulls a random interest/item from the user profile bullets for use as a conversation topic. */
+function extractRandomInterest(profileText: string | null): string | null {
+  if (!profileText) return null;
+  const interestLines = profileText.split('\n').filter(l => {
+    const lower = l.toLowerCase();
+    return l.startsWith('- ') && (
+      lower.includes('interest') || lower.includes('hobby') || lower.includes('like') ||
+      lower.includes('love') || lower.includes('food') || lower.includes('favourite') ||
+      lower.includes('enjoy') || lower.includes('passion')
+    );
+  });
+  if (interestLines.length === 0) return null;
+  const line = interestLines[Math.floor(Math.random() * interestLines.length)]!;
+  // Extract just the value part (after "Interests: " or "Food: " etc.)
+  const value = line.replace(/^-\s+\w+:\s*/i, '').trim();
+  const items = value.split(/[,、]+/).map(s => s.trim()).filter(Boolean);
+  if (items.length === 0) return null;
+  const item = items[Math.floor(Math.random() * items.length)]!;
+  return `${item} — the crew is chatting about things the user enjoys`;
 }
