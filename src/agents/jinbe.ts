@@ -3,6 +3,7 @@ import { TaskEnvelope, TelegramMessageMeta } from '../types/messages.js';
 import { splitTelegramMessage } from '../telegram/formatting.js';
 import { createTaskFromTelegramMessage } from '../telegram/task-factory.js';
 import { JinbeOptions } from '../telegram/types.js';
+import { KnowledgeWriter } from '../knowledge/writer.js';
 
 /**
  * Jinbe — the Straw Hat Pirates' helmsman. Former Warlord of the Sea,
@@ -25,10 +26,14 @@ export class JinbeAgent extends BaseAgent {
   private readonly processedMessages = new Set<string>();
   private readonly acknowledgmentText: string;
   private ackIndex = 0;
+  private readonly writer?: KnowledgeWriter;
 
   constructor(private readonly options: JinbeOptions) {
     super('jinbe-primary', 'jinbe');
     this.acknowledgmentText = options.acknowledgmentText ?? '';
+    if (options.knowledgeDir) {
+      this.writer = new KnowledgeWriter(options.knowledgeDir);
+    }
   }
 
   protected async doWork(task: TaskEnvelope): Promise<unknown> {
@@ -83,6 +88,11 @@ export class JinbeAgent extends BaseAgent {
       });
     }
 
+    // Create initial user profile on first contact (fire and forget)
+    if (this.writer && !this.writer.userProfileExists(String(message.chatId))) {
+      void this.createInitialProfile(message);
+    }
+
     await this.acknowledge(message);
 
     const task = createTaskFromTelegramMessage(message);
@@ -118,5 +128,28 @@ export class JinbeAgent extends BaseAgent {
     const msg = ACK_MESSAGES[this.ackIndex % ACK_MESSAGES.length]!;
     this.ackIndex++;
     return msg;
+  }
+
+  private async createInitialProfile(message: TelegramMessageMeta): Promise<void> {
+    if (!this.writer) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const nameParts = [message.firstName, message.lastName].filter(Boolean).join(' ');
+    const content = [
+      `# User Profile`,
+      ``,
+      `userId: ${message.userId} | chatId: ${message.chatId} | username: ${message.username ?? 'unknown'}`,
+      `createdAt: ${today} | lastUpdated: ${today}`,
+      ``,
+      `## Known About This User`,
+      nameParts ? `- Name: ${nameParts}` : null,
+      message.username ? `- Telegram: @${message.username}` : null,
+    ].filter(Boolean).join('\n');
+
+    try {
+      const filePath = this.writer.writeUserProfile(String(message.chatId), content);
+      this.logger.info({ chatId: message.chatId, filePath }, 'Jinbe: user profile created');
+    } catch (err) {
+      this.logger.warn({ err: String(err) }, 'Jinbe: failed to create user profile');
+    }
   }
 }

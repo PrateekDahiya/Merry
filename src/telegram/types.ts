@@ -22,4 +22,5 @@ export interface JinbeOptions {
   dispatcher: JinbeTaskDispatcher;
   acknowledgmentText?: string;
   store?: ChatMetadataStore;
+  knowledgeDir?: string;
 }

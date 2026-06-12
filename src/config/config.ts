@@ -61,6 +61,9 @@ const configSchema = z.object({
   luffyCheckIntervalMs: z.number().positive().default(300_000),   // 5 min
   luffyReportToChat: optionalBoolean.default(true),
 
+  // User profile
+  userProfileEnabled: optionalBoolean.default(true),
+
   // Chat history memory
   chatHistoryTurns: z.number().min(0).max(20).default(5),
 
@@ -164,6 +167,7 @@ export function loadConfig(): Config {
     luffyEnabled:         env.LUFFY_ENABLED,
     luffyCheckIntervalMs: env.LUFFY_CHECK_INTERVAL_MS ? parseInt(env.LUFFY_CHECK_INTERVAL_MS) : undefined,
     luffyReportToChat:    env.LUFFY_REPORT_TO_CHAT,
+    userProfileEnabled:   env.USER_PROFILE_ENABLED,
     chatHistoryTurns:     env.CHAT_HISTORY_TURNS ? parseInt(env.CHAT_HISTORY_TURNS) : undefined,
     frankyChatEnabled:    env.FRANKY_CHAT_ENABLED,
     frankyChatIntervalMs: env.FRANKY_CHAT_INTERVAL_MS ? parseInt(env.FRANKY_CHAT_INTERVAL_MS) : undefined,

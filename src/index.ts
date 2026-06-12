@@ -119,7 +119,11 @@ async function main() {
       logger.info('Zoro disabled (needs GITHUB_TOKEN + GITHUB_USERNAME + ZORO_ENABLED=true)');
     }
 
-    const ace = new AceAgent({ store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory, chatHistoryTurns: config.chatHistoryTurns });
+    const ace = new AceAgent({
+      store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory,
+      chatHistoryTurns: config.chatHistoryTurns,
+      knowledgeDir: config.userProfileEnabled ? config.zoroKnowledgeDir : undefined,
+    });
 
     let jinbe: JinbeAgent | null = null;
 
@@ -159,6 +163,7 @@ async function main() {
         client: telegramClient,
         dispatcher: new Phase2AceDispatcher(store, ace),
         store,
+        knowledgeDir: config.userProfileEnabled ? config.zoroKnowledgeDir : undefined,
       });
       await jinbe.start();
 

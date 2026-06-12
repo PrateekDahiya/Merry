@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import { writeFileSync, readFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
 
 /**
@@ -38,6 +38,32 @@ export class KnowledgeWriter {
     writeFileSync(fullPath, `${header}\n\n${content}`, 'utf-8');
     return fullPath;
   }
+
+  // ── User profiles ─────────────────────────────────────────────────────────
+
+  writeUserProfile(chatId: string, content: string): string {
+    const dir = join(this.knowledgeDir, 'users');
+    mkdirSync(dir, { recursive: true });
+    const fullPath = join(dir, `${chatId}-profile.md`);
+    writeFileSync(fullPath, content, 'utf-8');
+    return fullPath;
+  }
+
+  readUserProfile(chatId: string): string | null {
+    const filePath = join(this.knowledgeDir, 'users', `${chatId}-profile.md`);
+    if (!existsSync(filePath)) return null;
+    try {
+      return readFileSync(filePath, 'utf-8');
+    } catch {
+      return null;
+    }
+  }
+
+  userProfileExists(chatId: string): boolean {
+    return existsSync(join(this.knowledgeDir, 'users', `${chatId}-profile.md`));
+  }
+
+  // ── Web content ────────────────────────────────────────────────────────────
 
   writeWebContent(topic: string, source: string, content: string): string {
     const dir = join(this.knowledgeDir, 'web');

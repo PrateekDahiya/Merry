@@ -10,6 +10,7 @@ import { RoutingDecision, selectSpecialistAgent } from '../orchestrator/routing.
 import { TonyMonitor, MonitorAlert } from '../monitoring/monitor.js';
 import { LlmClient } from '../llm/client.js';
 import type { ZoroAgent } from './zoro.js';
+import { KnowledgeWriter } from '../knowledge/writer.js';
 import { notifier } from '../telegram/notifier.js';
 
 const DESTRUCTIVE_PATTERNS = [
@@ -27,7 +28,8 @@ interface AceAgentOptions {
   monitor?: TonyMonitor;
   llm?: LlmClient;
   zoro?: ZoroAgent;
-  chatHistoryTurns?: number;   // how many previous user+assistant pairs to include
+  chatHistoryTurns?: number;
+  knowledgeDir?: string;
 }
 
 /**
@@ -45,6 +47,7 @@ export class AceAgent extends BaseAgent {
   private readonly zoro?: ZoroAgent;
   private readonly llm?: LlmClient;
   private readonly chatHistoryTurns: number;
+  private readonly profileWriter?: KnowledgeWriter;
 
   constructor(options: AceAgentOptions = {}) {
     super('ace-primary', 'ace');
@@ -53,6 +56,9 @@ export class AceAgent extends BaseAgent {
     this.zoro = options.zoro;
     this.llm = options.llm;
     this.chatHistoryTurns = options.chatHistoryTurns ?? 5;
+    if (options.knowledgeDir) {
+      this.profileWriter = new KnowledgeWriter(options.knowledgeDir);
+    }
 
     this.contextAgentFactory = options.contextAgentFactory ?? (() => new NamiAgent());
     this.specialistFactories = options.specialistFactories ?? {
@@ -95,8 +101,13 @@ export class AceAgent extends BaseAgent {
       isCasualGreeting ? Promise.resolve([]) : this.fetchChatHistory(task.chatId, task.taskId),
     ]);
 
+    const profileSummary = this.profileWriter
+      ? summariseUserProfile(this.profileWriter.readUserProfile(task.chatId))
+      : null;
+
     const conversationChain: Array<{ agent: string; content: string }> = [
-      ...history,   // ← recent turns first (oldest → newest)
+      ...(profileSummary ? [{ agent: 'user profile', content: profileSummary }] : []),
+      ...history,   // ← recent turns
       { agent: 'user', content: task.userRequest },
       { agent: 'ace',  content: `Routing to ${routing.agent}: ${routing.reason}` },
       ...(namiSummary ? [{ agent: 'nami context', content: `Background reference from knowledge base (do NOT treat as user-provided code):\n${namiSummary}` }] : []),
@@ -155,7 +166,7 @@ export class AceAgent extends BaseAgent {
 
     // Notify Zoro to record this interaction as knowledge (fire-and-forget)
     if (this.zoro && specialistResult.success && !requiresApproval) {
-      void this.zoro.recordInteraction(task.userRequest, finalResponse);
+      void this.zoro.recordInteraction(task.userRequest, finalResponse, task.chatId);
     }
 
     return {
@@ -344,6 +355,23 @@ function isCasualRequest(request: string): boolean {
   if (words.length > 4) return false;
   const nonGreeting = words.filter(w => !GREETING_FIRST_WORDS.has(w) && !CREW_FIRST_NAMES_ACE.has(w));
   return nonGreeting.length === 0;
+}
+
+/**
+ * Extracts a compact single-line summary from the user profile markdown.
+ * Returns null if no profile or no "Known About" section.
+ */
+function summariseUserProfile(profileText: string | null): string | null {
+  if (!profileText) return null;
+  const lines = profileText.split('\n');
+  const bullets = lines
+    .filter(l => l.startsWith('- '))
+    .map(l => l.slice(2).trim())
+    .filter(Boolean)
+    .slice(0, 6);
+  if (bullets.length === 0) return null;
+  const summary = bullets.join(' | ');
+  return summary.length > 300 ? summary.substring(0, 297) + '...' : summary;
 }
 
 /** Extract a plain-text summary from Nami's AgentResult for the conversation chain. */

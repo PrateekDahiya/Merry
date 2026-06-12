@@ -125,7 +125,7 @@ export class ZoroAgent extends BaseAgent {
 
   // ── Interaction recording (called by Ace after each task) ─────────────────
 
-  async recordInteraction(question: string, answer: string): Promise<void> {
+  async recordInteraction(question: string, answer: string, chatId?: string): Promise<void> {
     try {
       const res = await this.llm.chat({
         system: `You are Zoro — Roronoa Zoro of the Straw Hat Pirates. You cut through noise and extract what matters.
@@ -144,6 +144,51 @@ Max 200 words. Start with a # heading naming the topic. Markdown only. No fluff,
     // Enrich knowledge base with web search for this topic (fire and forget)
     if (this.webSearchEnabled) {
       void this.enrichFromWeb(question);
+    }
+
+    // Update user profile with any new personal info mentioned in this conversation
+    if (chatId) {
+      void this.extractAndUpdateUserProfile(chatId, question, answer);
+    }
+  }
+
+  private async extractAndUpdateUserProfile(chatId: string, question: string, answer: string): Promise<void> {
+    try {
+      const existing = this.writer.readUserProfile(chatId) ?? '';
+      const res = await this.llm.chat({
+        system: `You extract personal information about users from conversations.
+Look for: name, location/city, interests, hobbies, job/role, tech stack, favourite projects, age, preferences.
+Given the existing profile and this new Q&A, extract ONLY NEW facts not already in the profile.
+If nothing new found, return exactly: NONE
+Otherwise return bullet points only (max 5), e.g.:
+- Location: Mumbai, India
+- Interests: cricket, anime
+Do NOT repeat anything already in the profile.`,
+        messages: [{
+          role: 'user',
+          content: `Existing profile:\n${existing || '(empty)'}\n\nNew Q&A:\nQ: ${question}\nA: ${answer.substring(0, 500)}`,
+        }],
+        maxTokens: 150,
+      });
+
+      const extracted = res.content.trim();
+      if (!extracted || extracted.toUpperCase() === 'NONE' || !extracted.includes('- ')) return;
+
+      // Append new bullets to the profile
+      const today = new Date().toISOString().slice(0, 10);
+      let updated: string;
+      if (existing.includes('## Known About This User')) {
+        updated = existing
+          .replace(/lastUpdated: \S+/, `lastUpdated: ${today}`)
+          + '\n' + extracted;
+      } else {
+        updated = (existing || '# User Profile\n') + '\n## Known About This User\n' + extracted;
+      }
+
+      this.writer.writeUserProfile(chatId, updated);
+      this.logger.info({ chatId }, 'Zoro: user profile updated with new info');
+    } catch (err) {
+      this.logger.debug({ err: String(err) }, 'Zoro: user profile update failed (non-critical)');
     }
   }
 
