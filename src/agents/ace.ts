@@ -88,10 +88,11 @@ export class AceAgent extends BaseAgent {
     await this.store.updateTaskState(task.taskId, 'delegated');
 
     // Build a tagged conversation chain so specialists know who said what.
-    // Includes recent chat history so agents have memory of the ongoing conversation.
+    // Skip history for casual greetings — "Hi Brook" shouldn't see old Python code.
+    const isCasualGreeting = isCasualRequest(task.userRequest);
     const [namiSummary, history] = await Promise.all([
       Promise.resolve(extractNamiSummary(contextResult.result)),
-      this.fetchChatHistory(task.chatId, task.taskId),
+      isCasualGreeting ? Promise.resolve([]) : this.fetchChatHistory(task.chatId, task.taskId),
     ]);
 
     const conversationChain: Array<{ agent: string; content: string }> = [
@@ -328,6 +329,21 @@ export class AceAgent extends BaseAgent {
 /** Returns true with the given probability (0–1). Used to randomly narrate actions. */
 function rarely(probability: number): boolean {
   return Math.random() < probability;
+}
+
+const QUESTION_WORDS = /\b(what|how|why|when|where|who|which|can|could|would|should|write|create|build|explain|help|tell|show|give|make|find|fix|debug|implement|generate)\b/i;
+const CREW_FIRST_NAMES_ACE = new Set(['ace','jinbe','nami','robin','sanji','zoro','tony','brook','franky','luffy','chopper']);
+const GREETING_FIRST_WORDS = new Set(['hello','hi','hey','howdy','yo','sup','hiya','good','bye','yohoho','nakama','super']);
+
+/** Returns true for short casual greetings that don't need history or context. */
+function isCasualRequest(request: string): boolean {
+  const trimmed = request.trim();
+  if (trimmed.length > 40) return false;                   // longer messages always get history
+  if (QUESTION_WORDS.test(trimmed)) return false;           // questions get history
+  const words = trimmed.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  if (words.length > 4) return false;
+  const nonGreeting = words.filter(w => !GREETING_FIRST_WORDS.has(w) && !CREW_FIRST_NAMES_ACE.has(w));
+  return nonGreeting.length === 0;
 }
 
 /** Extract a plain-text summary from Nami's AgentResult for the conversation chain. */

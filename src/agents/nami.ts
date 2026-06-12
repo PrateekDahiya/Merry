@@ -131,9 +131,16 @@ const GREETING_WORDS = new Set([
   'yohoho', 'yohohoho', 'nakama', 'super',
 ]);
 
+// Crew member names — greeting + name ("Hi Brook", "Hey Nami") is still casual
+const CREW_NAMES_SHORT = new Set([
+  'ace', 'jinbe', 'nami', 'robin', 'sanji', 'zoro', 'tony', 'brook', 'franky', 'luffy', 'chopper',
+]);
+
 function isCasualPhrase(request: string): boolean {
   const words = request.trim().toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
-  if (words.length === 0 || words.length > 3) return false;
-  // Only skip context if EVERY word in the request is a greeting word
-  return words.every(w => GREETING_WORDS.has(w));
+  if (words.length === 0 || words.length > 4) return false;
+  // Casual if all words are greeting words, OR greeting words + a crew name
+  const nonGreeting = words.filter(w => !GREETING_WORDS.has(w));
+  return nonGreeting.length === 0 ||
+    (nonGreeting.length === 1 && CREW_NAMES_SHORT.has(nonGreeting[0]!));
 }
