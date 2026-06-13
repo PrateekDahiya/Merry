@@ -136,7 +136,12 @@ async function main() {
       await tony.onStart();
       logger.info('Tony watchdog started');
     } else {
-      const telegramClient = new TelegrafTelegramClient(config.telegramBotToken);
+      const telegramClient = new TelegrafTelegramClient(config.telegramBotToken, {
+        store,
+        monitor: tonyMonitor,
+        zoro,
+        adminUserIds: config.adminUserIds,
+      });
       notifier.setClient(telegramClient);
       // Tony starts AFTER notifier has a client so its health reports reach Telegram
       const tony = new TonyAgent({ store, monitor: tonyMonitor });

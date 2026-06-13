@@ -1,12 +1,16 @@
 import { Telegraf } from 'telegraf';
 import { TelegramMessageMeta } from '../types/messages.js';
 import { TelegramClient, SendMessageOptions } from './types.js';
+import { CommandDeps, registerCommands } from './commands.js';
 
 export class TelegrafTelegramClient implements TelegramClient {
   private readonly bot: Telegraf;
 
-  constructor(token: string) {
+  constructor(token: string, commandDeps?: CommandDeps) {
     this.bot = new Telegraf(token);
+    if (commandDeps) {
+      registerCommands(this.bot, commandDeps);
+    }
   }
 
   onTextMessage(handler: (message: TelegramMessageMeta) => Promise<void>): void {
