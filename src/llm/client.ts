@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import Groq from 'groq-sdk';
+import { groqBreaker, anthropicBreaker, ollamaBreaker } from '../utils/circuit-breaker.js';
 
 export interface LlmMessage {
   role: 'user' | 'assistant';
@@ -41,17 +42,18 @@ export class GroqClient implements LlmClient {
       messages.push({ role: msg.role, content: msg.content });
     }
 
-    const completion = await this.client.chat.completions.create({
-      model: this.model,
-      max_tokens: request.maxTokens ?? 2048,
-      messages,
+    return groqBreaker.call(async () => {
+      const completion = await this.client.chat.completions.create({
+        model: this.model,
+        max_tokens: request.maxTokens ?? 2048,
+        messages,
+      });
+      return {
+        content: completion.choices[0]?.message?.content ?? '',
+        inputTokens: completion.usage?.prompt_tokens ?? 0,
+        outputTokens: completion.usage?.completion_tokens ?? 0,
+      };
     });
-
-    return {
-      content: completion.choices[0]?.message?.content ?? '',
-      inputTokens: completion.usage?.prompt_tokens ?? 0,
-      outputTokens: completion.usage?.completion_tokens ?? 0,
-    };
   }
 }
 
@@ -65,23 +67,19 @@ export class AnthropicClient implements LlmClient {
   }
 
   async chat(request: LlmRequest): Promise<LlmResponse> {
-    const response = await this.client.messages.create({
-      model: this.model,
-      max_tokens: request.maxTokens ?? 2048,
-      ...(request.system ? { system: request.system } : {}),
-      messages: request.messages,
+    return anthropicBreaker.call(async () => {
+      const response = await this.client.messages.create({
+        model: this.model,
+        max_tokens: request.maxTokens ?? 2048,
+        ...(request.system ? { system: request.system } : {}),
+        messages: request.messages,
+      });
+      const content = response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+        .map(block => block.text)
+        .join('\n');
+      return { content, inputTokens: response.usage.input_tokens, outputTokens: response.usage.output_tokens };
     });
-
-    const content = response.content
-      .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-      .map(block => block.text)
-      .join('\n');
-
-    return {
-      content,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-    };
   }
 }
 
@@ -147,6 +145,10 @@ export class OllamaClient implements LlmClient {
       messages.push({ role: msg.role, content: msg.content });
     }
 
+    return ollamaBreaker.call(() => this._ollamaRequest(messages, request.maxTokens));
+  }
+
+  private async _ollamaRequest(messages: Array<{ role: string; content: string }>, maxTokens?: number): Promise<LlmResponse> {
     const res = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -154,7 +156,7 @@ export class OllamaClient implements LlmClient {
         model: this.model,
         messages,
         stream: false,
-        options: { num_predict: request.maxTokens ?? 2048 },
+        options: { num_predict: maxTokens ?? 2048 },
       }),
     });
 
