@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { loadConfig } from './config/config.js';
+import { assertValidConfig } from './config/validate.js';
 import { initializeLogger, getLogger } from './logging/logger.js';
 import { createStore } from './persistence/factory.js';
 import { JinbeAgent } from './agents/jinbe.js';
@@ -28,6 +29,7 @@ async function main() {
     logger.info('Telegram Agent Orchestrator starting...');
 
     const config = loadConfig();
+    assertValidConfig(config);           // fail fast on bad config
     initializeLogger(config);
     logger.info({ env: config.nodeEnv, logLevel: config.logLevel }, 'Configuration loaded');
 
