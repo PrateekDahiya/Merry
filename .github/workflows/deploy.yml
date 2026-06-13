@@ -1,0 +1,47 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to server
+    runs-on: ubuntu-latest
+    # Only run if tests passed (implicit — same commit must pass test.yml)
+    needs: []
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install & type-check
+        run: npm ci && npm run type-check
+
+      - name: Run tests
+        run: npm run test:run
+        env:
+          USE_MOCK_AGENTS: "true"
+          USE_MOCK_TELEGRAM: "true"
+          TELEGRAM_BOT_TOKEN: "1234567890:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          NODE_ENV: "test"
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        # Requires secrets: SERVER_HOST, SERVER_USER, SSH_KEY
+        # Set these in GitHub → Settings → Secrets and variables → Actions
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/merry
+            git pull origin main
+            docker-compose build --no-cache
+            docker-compose up -d
+            echo "Deploy complete"

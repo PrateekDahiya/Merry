@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Type-check & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Run tests
+        run: npm run test:run
+        env:
+          # Use mock mode so no real API keys are needed in CI
+          USE_MOCK_AGENTS: "true"
+          USE_MOCK_TELEGRAM: "true"
+          TELEGRAM_BOT_TOKEN: "1234567890:AAHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          NODE_ENV: "test"
