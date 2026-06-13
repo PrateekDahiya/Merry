@@ -107,7 +107,7 @@ const configSchema = z.object({
   tonyReportIntervalMs: z.number().positive().default(1_800_000),  // 30 min health report
 
   // Persistence
-  persistenceType: z.enum(['memory', 'file']).default('file'),
+  persistenceType: z.enum(['memory', 'file', 'sqlite']).default('sqlite'),
   dbPath: z.string().default('./data/store.json'),
 
   // Admin chat IDs — these chats receive proactive messages without needing to message first
