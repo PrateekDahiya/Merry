@@ -20,8 +20,11 @@ export abstract class BaseAgent {
   async execute(task: TaskEnvelope): Promise<AgentResult> {
     const startTime = Date.now();
 
+    // Bind correlationId = taskId for every log from this execution
+    const taskLogger = this.logger.child({ correlationId: task.taskId });
+
     try {
-      this.logger.info({ taskId: task.taskId }, 'Starting task execution');
+      taskLogger.info({ taskId: task.taskId }, 'Starting task execution');
 
       const result = await this.doWork(task);
 
@@ -34,13 +37,13 @@ export abstract class BaseAgent {
         executionTimeMs,
       };
 
-      this.logger.info({ taskId: task.taskId, executionTimeMs }, 'Task completed successfully');
+      taskLogger.info({ taskId: task.taskId, executionTimeMs }, 'Task completed successfully');
       return response;
     } catch (error) {
       const executionTimeMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : String(error);
 
-      this.logger.error(
+      taskLogger.error(
         { taskId: task.taskId, error: errorMessage, executionTimeMs },
         'Task failed'
       );

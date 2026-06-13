@@ -21,7 +21,7 @@ export class Phase2AceDispatcher implements JinbeTaskDispatcher {
   async dispatch(task: TaskEnvelope): Promise<string> {
     await this.store.saveTask(task);
     await this.store.updateTaskState(task.taskId, 'delegated');
-    this.logger.info({ taskId: task.taskId, assignedAgent: task.assignedAgent }, 'Task handed off to Ace');
+    this.logger.info({ taskId: task.taskId, correlationId: task.taskId, assignedAgent: task.assignedAgent }, 'Task handed off to Ace');
 
     const result = await this.ace.execute(task);
 
