@@ -196,22 +196,45 @@ export interface LlmClientOptions {
   mock?: boolean;
 }
 
+/**
+ * Wraps any LlmClient with an LRU response cache.
+ * Skips cache for very short requests (routing classifier — maxTokens ≤ 5).
+ */
+export class CachedLlmClient implements LlmClient {
+  constructor(private readonly inner: LlmClient) {}
+
+  async chat(request: LlmRequest): Promise<LlmResponse> {
+    // Don't cache ultra-short routing calls (maxTokens ≤ 5) — they're already fast
+    if ((request.maxTokens ?? 9999) <= 5) return this.inner.chat(request);
+
+    const { getCachedResponse, setCachedResponse } = await import('./cache.js');
+    const cached = getCachedResponse(request);
+    if (cached) return cached;
+
+    const response = await this.inner.chat(request);
+    setCachedResponse(request, response);
+    return response;
+  }
+}
+
 export function createLlmClient(options: LlmClientOptions): LlmClient {
   if (options.mock) return new MockLlmClient();
 
   const provider = options.provider ?? detectProvider(options);
 
+  let base: LlmClient;
   if (provider === 'ollama') {
-    return new OllamaClient(options.ollamaBaseUrl, options.ollamaModel);
-  }
-  if (provider === 'groq' && options.groqApiKey) {
-    return new GroqClient(options.groqApiKey, options.groqModel);
-  }
-  if (provider === 'anthropic' && options.anthropicApiKey) {
-    return new AnthropicClient(options.anthropicApiKey, options.anthropicModel);
+    base = new OllamaClient(options.ollamaBaseUrl, options.ollamaModel);
+  } else if (provider === 'groq' && options.groqApiKey) {
+    base = new GroqClient(options.groqApiKey, options.groqModel);
+  } else if (provider === 'anthropic' && options.anthropicApiKey) {
+    base = new AnthropicClient(options.anthropicApiKey, options.anthropicModel);
+  } else {
+    return new MockLlmClient();
   }
 
-  return new MockLlmClient();
+  // Wrap with cache (skipped for ultra-short routing calls)
+  return new CachedLlmClient(base);
 }
 
 function detectProvider(options: LlmClientOptions): LlmProvider {
