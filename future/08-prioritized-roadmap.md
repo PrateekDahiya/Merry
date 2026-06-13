@@ -72,22 +72,31 @@ Do these when the system is humming and you want to go further.
 
 ---
 
-## Suggested sprint order
+## Definitive Execution Order (revised — dependencies respected)
 
-**Sprint 1 (this week):**
-Bot commands → Rate limiting → Correlation IDs → Startup validation → SQLite
-
-**Sprint 2 (next week):**
-LLM caching → Circuit breakers → CI/CD → Webhook mode
-
-**Sprint 3:**
-Vector search for Nami ← biggest quality improvement in the whole roadmap
-
-**Sprint 4:**
-Sandboxed code execution → Document upload → Prometheus metrics
-
-**Sprint 5+:**
-Multi-step planning, multi-bot, event bus...
+| # | Item | Phase | Reason for position |
+|---|---|---|---|
+| 1 | **Automated backups** ✅ | 1 | Protect data BEFORE any changes |
+| 2 | **Startup config validation** | 1 | Fail fast, 2 hours |
+| 3 | **Correlation IDs** | 1 | Needed before Prometheus |
+| 4 | **SQLite store** | 2 | Foundation for everything |
+| 5 | **Rate limiting** | 2 | Protect new stable store |
+| 6 | **Prompt injection defense** | 2 | Security gap |
+| 7 | **Bot commands** | 2 | User control |
+| 8 | **Circuit breakers** | 3 | Reliability before more external calls |
+| 9 | **LLM response caching** | 3 | Cost reduction |
+| 10 | **Prometheus + Grafana** | 3 | Observability |
+| 11 | **CI/CD pipeline** | 3 | Sustainable dev |
+| 12 | **Webhook mode** | 4 | Performance |
+| 13 | **Sandboxed code execution** | 4 | Killer feature |
+| 14 | **Document upload** | 4 | UX |
+| 15 | **Vector search for Nami** | 5 | Biggest quality jump |
+| 16 | **Plugin agent system** | 5 | Extensibility |
+| 17 | **Multi-bot tokens** | 5 | Scale |
+| 18 | **BullMQ for Zoro** | 6 | Better background processing |
+| 19 | **Ace multi-step planning** | 6 | Complex tasks |
+| 20 | **Event-driven architecture** | 6 | Microservices foundation |
+| 21 | **OpenTelemetry tracing** | 6 | Advanced observability |
 
 ---
 

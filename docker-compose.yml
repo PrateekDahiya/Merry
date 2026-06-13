@@ -90,6 +90,23 @@ services:
       # Knowledge base — persists across restarts, shared between Zoro (write) and Nami (read)
       - merry_knowledge:/app/knowledge
 
+  # On-demand backup — not started automatically
+  # Usage: docker-compose run --rm backup
+  backup:
+    image: alpine
+    profiles: ["tools"]
+    volumes:
+      - merry_data:/source/data:ro
+      - merry_knowledge:/source/knowledge:ro
+      - ${BACKUP_DIR:-/opt/backups/merry}:/dest
+    command: >
+      sh -c "
+        DATE=$$(date +%Y%m%d-%H%M%S) &&
+        tar czf /dest/merry-$$DATE.tar.gz /source &&
+        echo 'Backup complete: merry-'$$DATE'.tar.gz' &&
+        du -sh /dest/merry-$$DATE.tar.gz
+      "
+
 volumes:
   merry_data:
   merry_knowledge:
