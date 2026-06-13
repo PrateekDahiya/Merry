@@ -2,6 +2,7 @@ import { Telegraf } from 'telegraf';
 import { TelegramMessageMeta } from '../types/messages.js';
 import { TelegramClient, SendMessageOptions } from './types.js';
 import { CommandDeps, registerCommands } from './commands.js';
+import { extractDocumentText, buildDocumentMessage } from './document-handler.js';
 
 export class TelegrafTelegramClient implements TelegramClient {
   private readonly bot: Telegraf;
@@ -14,6 +15,32 @@ export class TelegrafTelegramClient implements TelegramClient {
   }
 
   onTextMessage(handler: (message: TelegramMessageMeta) => Promise<void>): void {
+    // Handle document uploads (PDF, text files, code, etc.)
+    this.bot.on('document', async ctx => {
+      const doc = ctx.message.document;
+      if (!doc?.file_id) return;
+      try {
+        const fileLink = await ctx.telegram.getFileLink(doc.file_id);
+        const res = await fetch(fileLink.toString());
+        const buffer = Buffer.from(await res.arrayBuffer());
+        const extracted = await extractDocumentText(buffer, doc.mime_type ?? 'application/octet-stream', doc.file_name ?? 'document');
+        const text = buildDocumentMessage(extracted, ctx.message.caption ?? undefined);
+        await handler({
+          chatId: ctx.message.chat.id,
+          messageId: ctx.message.message_id,
+          userId: ctx.message.from?.id ?? 0,
+          username: ctx.message.from?.username,
+          firstName: ctx.message.from?.first_name,
+          lastName: ctx.message.from?.last_name,
+          timestamp: new Date(ctx.message.date * 1000),
+          text,
+          isReply: false,
+        });
+      } catch (err) {
+        await ctx.reply('🗺️ Nami: Could not read that document. ' + String(err));
+      }
+    });
+
     this.bot.on('text', async ctx => {
       const { message } = ctx;
       const { from, chat } = message;
