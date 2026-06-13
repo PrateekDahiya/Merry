@@ -3,6 +3,7 @@ import { TaskEnvelope } from '../types/messages.js';
 import { SpecialistOutput, callSanjiLlm } from './specialists.js';
 import { LlmClient, MockLlmClient } from '../llm/client.js';
 import { notifier } from '../telegram/notifier.js';
+import { executeCode, isSafeCode } from '../execution/sandbox.js';
 
 /**
  * Sanji - Coding Agent
@@ -31,8 +32,38 @@ export class SanjiAgent extends BaseAgent {
       void notifier.send(Number(task.chatId), 'sanji', 'working');
     }
 
-    return callSanjiLlm(this.llm, task, contextSummary);
+    const result = await callSanjiLlm(this.llm, task, contextSummary);
+
+    // If user asked to RUN/EXECUTE code and Sanji generated code, run it
+    if (shouldRunCode(task.userRequest) && result.response) {
+      const codeBlock = extractCodeBlock(result.response);
+      if (codeBlock) {
+        const safety = isSafeCode(codeBlock);
+        if (safety.safe) {
+          const execution = await executeCode(codeBlock, { timeoutMs: 10_000 });
+          const execOutput = execution.exitCode === 0
+            ? `\n\n🍳 Sanji ran it! Output:\n\`\`\`\n${execution.stdout || '(no output)'}\n\`\`\``
+            : `\n\n⚠️ Execution failed (exit ${execution.exitCode}):\n\`\`\`\n${execution.stderr}\n\`\`\``;
+          return { ...result, response: result.response + execOutput };
+        } else {
+          return { ...result, response: result.response + `\n\n⚠️ Sanji: I won't run that — ${safety.reason}` };
+        }
+      }
+    }
+
+    return result;
   }
+}
+
+const RUN_PATTERNS = /\b(run|execute|test|check|try)\b.*(this|the|it|code|script|function|snippet)/i;
+
+function shouldRunCode(request: string): boolean {
+  return RUN_PATTERNS.test(request);
+}
+
+function extractCodeBlock(text: string): string | null {
+  const match = text.match(/```(?:python|py|javascript|js|bash|sh|node)?\n?([\s\S]+?)```/);
+  return match ? match[1]!.trim() : null;
 }
 
 function extractContextSummary(task: TaskEnvelope): string | undefined {
