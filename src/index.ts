@@ -129,6 +129,7 @@ async function main() {
     });
 
     let jinbe: JinbeAgent | null = null;
+    const additionalJinbes: JinbeAgent[] = [];
 
     if (config.useMockTelegram) {
       logger.info('Mock Telegram mode enabled; live Telegram listener not started');
@@ -174,6 +175,23 @@ async function main() {
         knowledgeDir: config.userProfileEnabled ? config.zoroKnowledgeDir : undefined,
       });
       await jinbe.start();
+
+      // Additional bot instances (TELEGRAM_ADDITIONAL_TOKENS=token1,token2,...)
+      for (const extraToken of config.additionalBotTokens) {
+        const extraClient = new TelegrafTelegramClient(extraToken, {
+          store, monitor: tonyMonitor, zoro, adminUserIds: config.adminUserIds,
+        });
+        notifier.setClient(extraClient);  // last one wins for notifier, but all send independently
+        const extraJinbe = new JinbeAgent({
+          client: extraClient,
+          dispatcher: new Phase2AceDispatcher(store, ace),
+          store,
+          knowledgeDir: config.userProfileEnabled ? config.zoroKnowledgeDir : undefined,
+        });
+        await extraJinbe.start();
+        additionalJinbes.push(extraJinbe);
+        logger.info({ token: extraToken.slice(0, 10) + '...' }, 'Additional bot instance started');
+      }
 
       if (config.crewChatEnabled) {
         const crewScheduler = new CrewScheduler({
@@ -259,6 +277,9 @@ async function main() {
       tonyMonitor.stop();
       stopMetricsServer();
       await jinbe?.stop(signal);
+      for (const j of additionalJinbes) {
+        await j.stop(signal);
+      }
       const fileStore = store as { flush?: () => void };
       if (typeof fileStore.flush === 'function') fileStore.flush();
       process.exit(0);

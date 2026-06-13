@@ -14,9 +14,14 @@ const optionalBoolean = z.preprocess(value => {
 }, z.boolean());
 
 const configSchema = z.object({
-  // Telegram
+  // Telegram — primary token + optional additional tokens for multi-bot
   telegramBotToken: z.string().min(1),
   telegramWebhookSecret: z.string().default('webhook-secret'),
+  // Additional bot tokens: TELEGRAM_BOT_TOKEN_2, TELEGRAM_BOT_TOKEN_3, ...
+  // Each gets its own Jinbe instance. Leave blank to run single-bot mode.
+  additionalBotTokens: z.string().default('').transform(s =>
+    s.split(',').map(t => t.trim()).filter(Boolean)
+  ),
 
   // LLM provider for Robin/Sanji (user-facing responses)
   llmProvider: z.enum(['groq', 'anthropic', 'ollama', 'mock']).optional(),
@@ -146,6 +151,7 @@ export function loadConfig(): Config {
   const rawConfig = {
     telegramBotToken: env.TELEGRAM_BOT_TOKEN,
     telegramWebhookSecret: env.TELEGRAM_WEBHOOK_SECRET,
+    additionalBotTokens: env.TELEGRAM_ADDITIONAL_TOKENS,
     llmProvider: env.LLM_PROVIDER as 'groq' | 'anthropic' | 'ollama' | 'mock' | undefined,
     groqApiKey: env.GROQ_API_KEY,
     groqModel: env.GROQ_MODEL,
