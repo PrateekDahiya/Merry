@@ -4,6 +4,7 @@ import { splitTelegramMessage } from '../telegram/formatting.js';
 import { createTaskFromTelegramMessage } from '../telegram/task-factory.js';
 import { JinbeOptions } from '../telegram/types.js';
 import { KnowledgeWriter } from '../knowledge/writer.js';
+import { rateLimiter } from '../middleware/rate-limiter.js';
 
 /**
  * Jinbe — the Straw Hat Pirates' helmsman. Former Warlord of the Sea,
@@ -71,6 +72,19 @@ export class JinbeAgent extends BaseAgent {
     }
 
     this.processedMessages.add(dedupeKey);
+
+    // Rate limit: 10 requests per minute per chatId
+    if (!rateLimiter.allow(String(message.chatId))) {
+      const retryAfter = rateLimiter.retryAfterSeconds(String(message.chatId));
+      this.logger.warn({ chatId: message.chatId }, 'Rate limit exceeded');
+      await this.options.client.sendMessage(
+        message.chatId,
+        `🌊 Jinbe: With honour, I must ask you to slow down. Even the sea needs time to breathe. Try again in ${retryAfter}s.`,
+        { replyToMessageId: message.messageId }
+      );
+      return null;
+    }
+
     this.logger.info(
       { chatId: message.chatId, messageId: message.messageId, userId: message.userId },
       'Telegram message received'
