@@ -18,6 +18,7 @@ import { createLlmClient } from './llm/client.js';
 import { notifier } from './telegram/notifier.js';
 import { WeatherService } from './services/weather.js';
 import { CrewScheduler } from './crew/scheduler.js';
+import { startMetricsServer, stopMetricsServer } from './monitoring/metrics.js';
 import { BrookAgent } from './agents/brook.js';
 import { FrankyAgent } from './agents/franky.js';
 import { LuffyAgent } from './agents/luffy.js';
@@ -244,8 +245,11 @@ async function main() {
       }
     }
 
+    // Start Prometheus metrics endpoint on port 9090
+    startMetricsServer(9090);
+
     logger.info(
-      { version: '0.7.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook', 'franky', 'luffy'] },
+      { version: '0.8.0', components: ['ace', 'jinbe', 'robin', 'sanji', 'nami', 'tony', 'zoro', 'brook', 'franky', 'luffy'] },
       'All components initialized. System ready.'
     );
 
@@ -253,6 +257,7 @@ async function main() {
       logger.info({ signal }, 'Shutting down gracefully...');
       zoro?.stopIndexing();
       tonyMonitor.stop();
+      stopMetricsServer();
       await jinbe?.stop(signal);
       const fileStore = store as { flush?: () => void };
       if (typeof fileStore.flush === 'function') fileStore.flush();

@@ -84,6 +84,8 @@ services:
       - ENABLE_AUDIT_LOGS=true
       - USE_MOCK_AGENTS=false
       - USE_MOCK_TELEGRAM=false
+    ports:
+      - "9090:9090"   # Prometheus metrics — scrape at http://localhost:9090/metrics
     volumes:
       # Task + result persistence
       - merry_data:/app/data
