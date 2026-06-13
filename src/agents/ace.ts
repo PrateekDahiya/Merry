@@ -12,6 +12,7 @@ import { LlmClient } from '../llm/client.js';
 import type { ZoroAgent } from './zoro.js';
 import { KnowledgeWriter } from '../knowledge/writer.js';
 import { notifier } from '../telegram/notifier.js';
+import { sanitizeUserInput } from '../security/sanitizer.js';
 
 const DESTRUCTIVE_PATTERNS = [
   'delete all', 'drop table', 'drop database', 'truncate',
@@ -108,7 +109,7 @@ export class AceAgent extends BaseAgent {
     const conversationChain: Array<{ agent: string; content: string }> = [
       ...(profileSummary ? [{ agent: 'user profile', content: profileSummary }] : []),
       ...history,   // ← recent turns
-      { agent: 'user', content: task.userRequest },
+      { agent: 'user', content: sanitizeUserInput(task.userRequest) },
       { agent: 'ace',  content: `Routing to ${routing.agent}: ${routing.reason}` },
       ...(namiSummary ? [{ agent: 'nami context', content: `Background reference from knowledge base (do NOT treat as user-provided code):\n${namiSummary}` }] : []),
     ];
