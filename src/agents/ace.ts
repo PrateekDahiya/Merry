@@ -2,6 +2,7 @@ import { BaseAgent } from './base.js';
 import { NamiAgent } from './nami.js';
 import { RobinAgent } from './robin.js';
 import { SanjiAgent } from './sanji.js';
+import { CrewResponderAgent } from './crew-responder.js';
 import { SpecialistOutput } from './specialists.js';
 import { AgentResult, AgentType, TaskEnvelope } from '../types/messages.js';
 import { ResultStore, TaskStore, getStore } from '../persistence/store.js';
@@ -63,8 +64,14 @@ export class AceAgent extends BaseAgent {
 
     this.contextAgentFactory = options.contextAgentFactory ?? (() => new NamiAgent());
     this.specialistFactories = options.specialistFactories ?? {
-      robin: () => new RobinAgent(options.llm),
-      sanji: () => new SanjiAgent(options.llm),
+      robin:  () => new RobinAgent(options.llm),
+      sanji:  () => new SanjiAgent(options.llm),
+      jinbe:  () => new CrewResponderAgent('jinbe',  options.llm),
+      tony:   () => new CrewResponderAgent('tony',   options.llm),
+      nami:   () => new CrewResponderAgent('nami',   options.llm),
+      zoro:   () => new CrewResponderAgent('zoro',   options.llm),
+      brook:  () => new CrewResponderAgent('brook',  options.llm),
+      franky: () => new CrewResponderAgent('franky', options.llm),
     };
 
     if (this.monitor) {
