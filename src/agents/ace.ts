@@ -9,11 +9,12 @@ import { ResultStore, TaskStore, getStore } from '../persistence/store.js';
 import { OrchestrationResult } from '../orchestrator/result.js';
 import { RoutingDecision, selectSpecialistAgent } from '../orchestrator/routing.js';
 import { TonyMonitor, MonitorAlert } from '../monitoring/monitor.js';
-import { LlmClient } from '../llm/client.js';
+import { LlmClient, OllamaClient } from '../llm/client.js';
 import type { ZoroAgent } from './zoro.js';
 import { KnowledgeWriter } from '../knowledge/writer.js';
 import { notifier } from '../telegram/notifier.js';
 import { sanitizeUserInput } from '../security/sanitizer.js';
+import { decomposeTask, assembleMultiStepResult } from '../orchestrator/planner.js';
 
 const DESTRUCTIVE_PATTERNS = [
   'delete all', 'drop table', 'drop database', 'truncate',
@@ -32,6 +33,8 @@ interface AceAgentOptions {
   zoro?: ZoroAgent;
   chatHistoryTurns?: number;
   knowledgeDir?: string;
+  ollamaBaseUrl?: string;  // for free local planning calls
+  ollamaModel?: string;
 }
 
 /**
@@ -48,6 +51,7 @@ export class AceAgent extends BaseAgent {
   private readonly monitor?: TonyMonitor;
   private readonly zoro?: ZoroAgent;
   private readonly llm?: LlmClient;
+  private readonly plannerLlm?: LlmClient;  // Ollama for free local planning calls
   private readonly chatHistoryTurns: number;
   private readonly profileWriter?: KnowledgeWriter;
 
@@ -58,6 +62,11 @@ export class AceAgent extends BaseAgent {
     this.zoro = options.zoro;
     this.llm = options.llm;
     this.chatHistoryTurns = options.chatHistoryTurns ?? 5;
+    // Use Ollama for planning calls if available — free, local, no quota cost
+    const ollamaUrl = options.ollamaBaseUrl ?? process.env['OLLAMA_BASE_URL'];
+    this.plannerLlm = ollamaUrl
+      ? new OllamaClient(ollamaUrl, options.ollamaModel ?? process.env['OLLAMA_MODEL'] ?? 'llama3.2')
+      : undefined;
     if (options.knowledgeDir) {
       this.profileWriter = new KnowledgeWriter(options.knowledgeDir);
     }
@@ -85,10 +94,13 @@ export class AceAgent extends BaseAgent {
     await this.store.saveTask({ ...task, state: 'running', assignedAgent: 'ace' });
     await this.store.updateTaskState(task.taskId, 'waiting_for_context');
 
-    // Run Nami context fetch + LLM routing in parallel
-    const [contextResult, routing] = await Promise.all([
+    // Run Nami context fetch, LLM routing, and task complexity check in parallel
+    const [contextResult, routing, plan] = await Promise.all([
       this.requestContext(task),
       selectSpecialistAgent(task.userRequest, this.llm),
+      this.llm
+        ? decomposeTask(task.userRequest, this.llm, this.plannerLlm)
+        : Promise.resolve({ subtasks: [], isComplex: false }),
     ]);
     await this.store.saveResult(contextResult);
 
@@ -144,7 +156,31 @@ export class AceAgent extends BaseAgent {
 
     let finalResponse: string;
 
-    // Single-step execution
+    // Multi-step execution for explicitly compound requests (e.g. "write X AND also Y AND also Z")
+    // userRequest stays the original — subtask label goes into context.currentSubtask so the
+    // specialist knows which aspect to focus on without losing the user's full question.
+    if (plan.isComplex && plan.subtasks.length > 1) {
+      this.logger.info({ taskId: task.taskId, steps: plan.subtasks.length }, 'Ace: executing multi-step plan');
+      const stepResults: string[] = [];
+      for (const subtask of plan.subtasks) {
+        const stepTask: TaskEnvelope = {
+          ...specialistTask,
+          context: { ...specialistTask.context, currentSubtask: subtask },
+          // userRequest is intentionally unchanged so the specialist keeps full context
+        };
+        const stepSpec = this.createSpecialist(routing);
+        const stepResult = await stepSpec.execute(stepTask);
+        stepResults.push(stepResult.success ? this.extractSpecialistText(stepResult) : `(step failed: ${stepResult.error})`);
+      }
+      finalResponse = assembleMultiStepResult(plan.subtasks, stepResults);
+      await this.store.saveTask({ ...specialistTask, state: 'completed', context: { ...specialistTask.context, finalResponse } });
+      return {
+        taskId: task.taskId, finalResponse, selectedAgent: routing.agent, routing, contextResult,
+        specialistResult: { taskId: task.taskId, agentId: 'ace', success: true, result: finalResponse, executionTimeMs: 0 },
+      };
+    }
+
+    // Single-step execution (default)
     const specialistResult = await specialist.execute(specialistTask);
     await this.store.saveResult(specialistResult);
 
@@ -202,6 +238,13 @@ export class AceAgent extends BaseAgent {
       },
     };
     return contextAgent.execute(contextTask);
+  }
+
+  private extractSpecialistText(result: AgentResult): string {
+    const parsed = SpecialistOutput.safeParse(result.result);
+    if (parsed.success) return parsed.data.response;
+    if (typeof result.result === 'string') return result.result;
+    return JSON.stringify(result.result);
   }
 
   private createSpecialist(routing: RoutingDecision): BaseAgent {

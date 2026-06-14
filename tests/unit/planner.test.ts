@@ -33,7 +33,7 @@ describe('decomposeTask', () => {
     expect(result.subtasks[0]).toBe('Write the code');
   });
 
-  it('caps subtasks at 5', async () => {
+  it('caps subtasks at 3', async () => {
     const bigPlan = {
       subtasks: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
       isComplex: true,
@@ -42,7 +42,7 @@ describe('decomposeTask', () => {
       chat: async () => ({ content: JSON.stringify(bigPlan), inputTokens: 1, outputTokens: 1 }),
     };
     const result = await decomposeTask('very complex request', bigLlm as any);
-    expect(result.subtasks.length).toBeLessThanOrEqual(5);
+    expect(result.subtasks.length).toBeLessThanOrEqual(3);
   });
 });
 
@@ -57,8 +57,8 @@ describe('assembleMultiStepResult', () => {
       ['Write the code', 'Write the tests'],
       ['def fib(n): ...', 'def test_fib(): ...']
     );
-    expect(result).toContain('Step 1: Write the code');
-    expect(result).toContain('Step 2: Write the tests');
+    expect(result).toContain('### Write the code');
+    expect(result).toContain('### Write the tests');
     expect(result).toContain('def fib');
     expect(result).toContain('def test_fib');
   });

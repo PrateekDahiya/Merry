@@ -126,6 +126,8 @@ async function main() {
       store, llm, monitor: tonyMonitor, zoro, contextAgentFactory: namiFactory,
       chatHistoryTurns: config.chatHistoryTurns,
       knowledgeDir: config.userProfileEnabled ? config.zoroKnowledgeDir : undefined,
+      ollamaBaseUrl: config.ollamaBaseUrl,
+      ollamaModel: config.ollamaModel,
     });
 
     let jinbe: JinbeAgent | null = null;
