@@ -85,17 +85,16 @@ export class AceAgent extends BaseAgent {
     await this.store.saveTask({ ...task, state: 'running', assignedAgent: 'ace' });
     await this.store.updateTaskState(task.taskId, 'waiting_for_context');
 
-    // Randomly narrate what Ace is doing (30% chance — keeps it natural, not noisy)
-    if (rarely(0.3)) {
-      void notifier.send(Number(task.chatId), 'ace', 'routing');
-    }
-
     // Run Nami context fetch + LLM routing in parallel
     const [contextResult, routing] = await Promise.all([
       this.requestContext(task),
       selectSpecialistAgent(task.userRequest, this.llm),
     ]);
     await this.store.saveResult(contextResult);
+
+    // Always announce who is handling this — specific to the destination crew member.
+    // This replaces Jinbe's generic ack as the first user-visible message.
+    void notifier.sendHandoff(Number(task.chatId), routing.agent as Parameters<typeof notifier.sendHandoff>[1]);
 
     const specialist = this.createSpecialist(routing);
 

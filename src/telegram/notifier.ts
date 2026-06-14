@@ -38,6 +38,15 @@ export class TelegramNotifier {
       await this.sendRaw(chatId, labelMessage(step.agent, step.text));
     }
   }
+
+  /** Send a character-specific handoff message from Ace to the target crew member. */
+  async sendHandoff(chatId: number, toAgent: AgentVoice): Promise<void> {
+    if (!this.client) return;
+    const pool = HANDOFF_MESSAGES[toAgent];
+    if (!pool || pool.length === 0) return;
+    const text = pool[Math.floor(Math.random() * pool.length)]!;
+    await this.sendRaw(chatId, text);
+  }
 }
 
 export type AgentVoice = 'ace' | 'jinbe' | 'nami' | 'robin' | 'sanji' | 'zoro' | 'tony' | 'brook' | 'franky' | 'luffy';
@@ -231,6 +240,53 @@ function pickMessage(agent: AgentVoice, event: AgentEvent): string | null {
   if (!pool || pool.length === 0) return null;
   return pool[Math.floor(Math.random() * pool.length)]!;
 }
+
+// ── Ace handoff messages — sent after routing is decided ──────────────────────
+// These replace the generic "figuring out who's best" narration with something
+// specific to the destination crew member.
+
+const HANDOFF_MESSAGES: Partial<Record<AgentVoice, string[]>> = {
+  sanji: [
+    '🔥 *Ace:* Sanji — this one\'s for you. Nobody handles this better.',
+    '🔥 *Ace:* That\'s kitchen territory. Calling Sanji now.',
+    '🔥 *Ace:* Precision work like this? Sanji\'s the only choice.',
+  ],
+  robin: [
+    '🔥 *Ace:* Robin knows more about this than anyone on the ship. Routing now.',
+    '🔥 *Ace:* This calls for Robin\'s library. On it.',
+    '🔥 *Ace:* Research and knowledge? Robin\'s already three steps ahead.',
+  ],
+  jinbe: [
+    '🔥 *Ace:* Ocean matters belong to Jinbe. Helmsman, you\'re up!',
+    '🔥 *Ace:* That\'s deep sea territory — Jinbe handles this.',
+    '🔥 *Ace:* The sea is Jinbe\'s domain. Routing to him now.',
+  ],
+  tony: [
+    '🔥 *Ace:* Medical question? Tony! Don\'t let him hear you call him cute.',
+    '🔥 *Ace:* Chopper\'s the best doctor on the seas. Routing to Tony.',
+    '🔥 *Ace:* Health and biology? Tony\'s your person. He\'s very serious about it.',
+  ],
+  nami: [
+    '🔥 *Ace:* Nami\'s got the charts and forecasts for this. Sending to her now.',
+    '🔥 *Ace:* Weather and maps? Nobody navigates like Nami.',
+    '🔥 *Ace:* That\'s Nami\'s specialty. She\'ll have an answer — for a price.',
+  ],
+  zoro: [
+    '🔥 *Ace:* Training and strength? Zoro lives for this. Routing now.',
+    '🔥 *Ace:* Zoro\'ll handle this — and probably get lost getting here.',
+    '🔥 *Ace:* Fitness and discipline? That\'s Zoro\'s entire personality.',
+  ],
+  brook: [
+    '🔥 *Ace:* Music and culture? Brook\'s domain. Yohoho! Calling him.',
+    '🔥 *Ace:* That\'s Brook\'s stage. Soul King incoming.',
+    '🔥 *Ace:* Entertainment questions go to Brook. He\'ll probably add a skull pun.',
+  ],
+  franky: [
+    '🔥 *Ace:* Engineering? Franky will say SUPER at least once. Routing now.',
+    '🔥 *Ace:* That\'s Franky\'s blueprint territory. SUPER!',
+    '🔥 *Ace:* Building and mechanics — Franky\'s got it. He always does.',
+  ],
+};
 
 function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
