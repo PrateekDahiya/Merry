@@ -13,7 +13,6 @@ import type { ZoroAgent } from './zoro.js';
 import { KnowledgeWriter } from '../knowledge/writer.js';
 import { notifier } from '../telegram/notifier.js';
 import { sanitizeUserInput } from '../security/sanitizer.js';
-import { decomposeTask, assembleMultiStepResult } from '../orchestrator/planner.js';
 
 const DESTRUCTIVE_PATTERNS = [
   'delete all', 'drop table', 'drop database', 'truncate',
@@ -84,11 +83,10 @@ export class AceAgent extends BaseAgent {
       void notifier.send(Number(task.chatId), 'ace', 'routing');
     }
 
-    // Run Nami context fetch + LLM routing + task decomposition in parallel
-    const [contextResult, routing, plan] = await Promise.all([
+    // Run Nami context fetch + LLM routing in parallel
+    const [contextResult, routing] = await Promise.all([
       this.requestContext(task),
       selectSpecialistAgent(task.userRequest, this.llm),
-      this.llm ? decomposeTask(task.userRequest, this.llm) : Promise.resolve({ subtasks: [], isComplex: false }),
     ]);
     await this.store.saveResult(contextResult);
 
@@ -140,23 +138,7 @@ export class AceAgent extends BaseAgent {
 
     let finalResponse: string;
 
-    // Multi-step execution for complex tasks
-    if (plan.isComplex && plan.subtasks.length > 1) {
-      this.logger.info({ taskId: task.taskId, steps: plan.subtasks.length }, 'Ace: executing multi-step plan');
-      const stepResults: string[] = [];
-      for (const subtask of plan.subtasks) {
-        const stepTask: TaskEnvelope = { ...specialistTask, userRequest: subtask };
-        const stepSpec = this.createSpecialist(routing);
-        const stepResult = await stepSpec.execute(stepTask);
-        stepResults.push(stepResult.success ? this.extractSpecialistText(stepResult) : `(step failed: ${stepResult.error})`);
-      }
-      finalResponse = assembleMultiStepResult(plan.subtasks, stepResults);
-      void this.checkApprovalRequired({ taskId: task.taskId, agentId: 'ace', success: true, result: null, executionTimeMs: 0 }, task.userRequest);
-      await this.store.saveTask({ ...specialistTask, state: 'completed', context: { ...specialistTask.context, finalResponse } });
-      return { taskId: task.taskId, finalResponse, selectedAgent: routing.agent, routing, contextResult, specialistResult: { taskId: task.taskId, agentId: 'ace', success: true, result: finalResponse, executionTimeMs: 0 } };
-    }
-
-    // Single-step execution (default)
+    // Single-step execution
     const specialistResult = await specialist.execute(specialistTask);
     await this.store.saveResult(specialistResult);
 
@@ -277,13 +259,6 @@ export class AceAgent extends BaseAgent {
     );
 
     return parts.filter(Boolean).join('\n');
-  }
-
-  private extractSpecialistText(result: AgentResult): string {
-    const parsed = SpecialistOutput.safeParse(result.result);
-    if (parsed.success) return parsed.data.response;
-    if (typeof result.result === 'string') return result.result;
-    return JSON.stringify(result.result);
   }
 
   private async handleMonitorAlert(alert: MonitorAlert): Promise<void> {
