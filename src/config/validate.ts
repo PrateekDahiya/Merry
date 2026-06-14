@@ -1,4 +1,5 @@
 import type { Config } from './config.js';
+import { getLogger } from '../logging/logger.js';
 
 export interface ValidationResult {
   valid: boolean;
@@ -66,8 +67,9 @@ export function validateConfig(config: Config): ValidationResult {
 export function assertValidConfig(config: Config): void {
   const result = validateConfig(config);
 
+  const logger = getLogger();
   for (const warning of result.warnings) {
-    console.warn(`[config] WARNING: ${warning}`);
+    logger.warn({ component: 'config' }, warning);
   }
 
   if (!result.valid) {

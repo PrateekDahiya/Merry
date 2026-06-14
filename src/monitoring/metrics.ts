@@ -46,6 +46,7 @@ export const rateLimitTotal = new Counter({
 // ── Server ─────────────────────────────────────────────────────────────────
 
 let server: http.Server | null = null;
+let defaultMetricsRegistered = false;
 
 /**
  * Start a lightweight HTTP server on the given port exposing /metrics.
@@ -53,8 +54,11 @@ let server: http.Server | null = null;
  * Free: no external service needed — just expose port 9090 in docker-compose.
  */
 export function startMetricsServer(port = 9090): void {
-  // Collect default Node.js metrics (memory, CPU, GC, etc.)
-  collectDefaultMetrics({ register: registry });
+  // Collect default Node.js metrics once — calling multiple times throws "already registered"
+  if (!defaultMetricsRegistered) {
+    collectDefaultMetrics({ register: registry });
+    defaultMetricsRegistered = true;
+  }
 
   server = http.createServer(async (req, res) => {
     if (req.url === '/metrics' && req.method === 'GET') {

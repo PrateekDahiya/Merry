@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { cacheKey, getCachedResponse, setCachedResponse, clearCache, getCacheStats } from '../../src/llm/cache.js';
 import { CachedLlmClient, MockLlmClient } from '../../src/llm/client.js';
+import { groqBreaker, anthropicBreaker, ollamaBreaker } from '../../src/utils/circuit-breaker.js';
 import type { LlmRequest } from '../../src/llm/client.js';
 
 const req: LlmRequest = {
@@ -11,6 +12,7 @@ const req: LlmRequest = {
 
 describe('LLM cache', () => {
   beforeEach(() => clearCache());
+  afterEach(() => { groqBreaker.reset(); anthropicBreaker.reset(); ollamaBreaker.reset(); });
 
   it('cacheKey is stable for the same request', () => {
     const k1 = cacheKey(req);

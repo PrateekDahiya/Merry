@@ -72,12 +72,16 @@ export class VectorContextSearch {
       tokens: tokenize(readFileSync(filePath, 'utf-8')),
     }));
 
-    // Build vocabulary from all documents
-    const vocabSet = new Set<string>();
+    // Build vocabulary sorted by corpus frequency (most common first).
+    // Slicing by insertion order (Set) would include arbitrary rare tokens.
+    const freq = new Map<string, number>();
     for (const doc of this.docs) {
-      for (const token of doc.tokens) vocabSet.add(token);
+      for (const token of doc.tokens) freq.set(token, (freq.get(token) ?? 0) + 1);
     }
-    this.vocab = Array.from(vocabSet).slice(0, 5_000); // cap vocab size
+    this.vocab = Array.from(freq.entries())
+      .sort((a, b) => b[1] - a[1])  // most frequent first
+      .slice(0, 5_000)
+      .map(([token]) => token);
 
     // Build TF vectors
     this.vectors = this.docs.map(doc => buildTfVector(doc.tokens, this.vocab));

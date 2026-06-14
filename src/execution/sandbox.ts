@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { createChildLogger } from '../logging/logger.js';
 
 const logger = createChildLogger({ component: 'sandbox' });
@@ -60,33 +60,31 @@ function detectLanguage(code: string): 'python' | 'node' | 'bash' {
 }
 
 function runInSubprocess(code: string, language: 'python' | 'node' | 'bash', timeoutMs: number): Omit<ExecutionResult, 'durationMs' | 'timedOut'> {
-  const commands: Record<string, string[]> = {
-    python: ['python3', '-c', code],
-    node:   ['node', '--eval', code],
-    bash:   ['bash', '-c', code],
+  // Use spawnSync (array args) to prevent shell injection — no string interpolation
+  const commands: Record<string, { cmd: string; args: string[] }> = {
+    python: { cmd: 'python3', args: ['-c', code] },
+    node:   { cmd: 'node',    args: ['--eval', code] },
+    bash:   { cmd: 'bash',    args: ['-c', code] },
   };
 
-  const [cmd, ...args] = commands[language]!;
+  const { cmd, args } = commands[language]!;
 
-  try {
-    const stdout = execSync(`${cmd} ${args.map(a => `'${a.replace(/'/g, "'\\''")}'`).join(' ')}`, {
-      timeout: timeoutMs,
-      encoding: 'utf-8',
-      maxBuffer: 64 * 1024,  // 64 KB output limit
-      env: {
-        PATH: process.env['PATH'],
-        // No extra env vars — minimal environment
-      },
-    });
-    return { stdout: stdout.trim(), stderr: '', exitCode: 0 };
-  } catch (err: unknown) {
-    const e = err as { stdout?: string; stderr?: string; status?: number; signal?: string };
-    return {
-      stdout: (e.stdout ?? '').trim(),
-      stderr: (e.stderr ?? String(err)).trim(),
-      exitCode: e.status ?? 1,
-    };
+  const result = spawnSync(cmd, args, {
+    timeout: timeoutMs,
+    encoding: 'utf-8',
+    maxBuffer: 64 * 1024,
+    env: { PATH: process.env['PATH'] },
+    shell: false,  // explicit: no shell, prevents injection
+  });
+
+  if (result.error) {
+    return { stdout: '', stderr: result.error.message, exitCode: 1 };
   }
+  return {
+    stdout: (result.stdout ?? '').trim(),
+    stderr: (result.stderr ?? '').trim(),
+    exitCode: result.status ?? 1,
+  };
 }
 
 /**
@@ -95,19 +93,36 @@ function runInSubprocess(code: string, language: 'python' | 'node' | 'bash', tim
  */
 export function isSafeCode(code: string): { safe: boolean; reason?: string } {
   const DANGEROUS = [
+    // Python dangerous imports
     /import\s+os\b/,
     /import\s+subprocess\b/,
     /import\s+sys\b.*exec/i,
+    /import\s+shutil\b/,
+    /import\s+pathlib\b/,
     /exec\s*\(/,
     /__import__/,
     /open\s*\(/,
     /socket\b/,
     /urllib\b/,
     /requests\b/,
+    // Node.js dangerous requires
+    /require\s*\(\s*['"]fs['"]\s*\)/,
+    /require\s*\(\s*['"]child_process['"]\s*\)/,
+    /require\s*\(\s*['"]net['"]\s*\)/,
+    /require\s*\(\s*['"]http['"]\s*\)/,
+    /require\s*\(\s*['"]https['"]\s*\)/,
+    /require\s*\(\s*['"]os['"]\s*\)/,
+    /require\s*\(\s*['"]path['"]\s*\)/,
+    // ES module imports for dangerous modules
+    /from\s+['"]fs['"]/,
+    /from\s+['"]child_process['"]/,
+    // Shell commands
     /rm\s+-rf/,
     /sudo\b/,
     /wget\b/,
     /curl\b/,
+    // Template literal command injection
+    /`[^`]*\$\{/,   // backtick template with variable interpolation
   ];
 
   for (const pattern of DANGEROUS) {

@@ -85,12 +85,16 @@ export class SqliteStore implements TaskStore, ResultStore, ChatMetadataStore {
   }
 
   async listTasksByChatId(chatId: string, limit?: number): Promise<TaskEnvelope[]> {
-    const sql = limit
-      ? 'SELECT data FROM tasks WHERE chat_id = ? ORDER BY timestamp ASC LIMIT ?'
-      : 'SELECT data FROM tasks WHERE chat_id = ? ORDER BY timestamp ASC';
-    const rows = (limit
-      ? this.db.prepare(sql).all(chatId, limit)
-      : this.db.prepare(sql).all(chatId)) as { data: string }[];
+    if (limit) {
+      // DESC + LIMIT gets the most recent N, then reverse to return oldest-first (matches InMemoryStore).
+      const rows = this.db.prepare(
+        'SELECT data FROM tasks WHERE chat_id = ? ORDER BY timestamp DESC LIMIT ?'
+      ).all(chatId, limit) as { data: string }[];
+      return rows.map(r => this.reviveTask(JSON.parse(r.data))).reverse();
+    }
+    const rows = this.db.prepare(
+      'SELECT data FROM tasks WHERE chat_id = ? ORDER BY timestamp ASC'
+    ).all(chatId) as { data: string }[];
     return rows.map(r => this.reviveTask(JSON.parse(r.data)));
   }
 

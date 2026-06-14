@@ -280,8 +280,10 @@ async function main() {
       for (const j of additionalJinbes) {
         await j.stop(signal);
       }
-      const fileStore = store as { flush?: () => void };
-      if (typeof fileStore.flush === 'function') fileStore.flush();
+      // Flush JSON file store or close SQLite connection cleanly
+      const anyStore = store as { flush?: () => void; close?: () => void };
+      if (typeof anyStore.flush === 'function') anyStore.flush();
+      if (typeof anyStore.close === 'function') anyStore.close();
       process.exit(0);
     };
 

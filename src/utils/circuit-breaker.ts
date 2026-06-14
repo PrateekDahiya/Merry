@@ -90,3 +90,13 @@ export const ollamaBreaker    = new CircuitBreaker({ name: 'ollama',    failureT
 export const githubBreaker    = new CircuitBreaker({ name: 'github',    failureThreshold: 5, resetTimeMs: 60_000 });
 export const wikiBreaker      = new CircuitBreaker({ name: 'wikipedia', failureThreshold: 3, resetTimeMs: 30_000 });
 export const ddgBreaker       = new CircuitBreaker({ name: 'duckduckgo',failureThreshold: 3, resetTimeMs: 30_000 });
+
+/** Reset all singleton breakers to CLOSED — call in test afterEach/afterAll. */
+export function resetAllBreakers(): void {
+  groqBreaker.reset();
+  anthropicBreaker.reset();
+  ollamaBreaker.reset();
+  githubBreaker.reset();
+  wikiBreaker.reset();
+  ddgBreaker.reset();
+}

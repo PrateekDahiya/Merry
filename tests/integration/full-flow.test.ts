@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
+import { rateLimiter } from '../../src/middleware/rate-limiter.js';
 import { JinbeAgent } from '../../src/agents/jinbe.js';
 import { AceAgent } from '../../src/agents/ace.js';
 import { BaseAgent } from '../../src/agents/base.js';
@@ -55,6 +56,9 @@ function makeMessage(text: string): TelegramMessageMeta {
 // --- tests ---
 
 describe('Full message flow (Telegram → Jinbe → Ace → specialist → Jinbe → Telegram)', () => {
+  // Reset the global rate limiter singleton between tests to prevent state leakage
+  beforeEach(() => rateLimiter.reset());
+
   it('routes a writing request through Robin and sends a Telegram reply', async () => {
     const store = new InMemoryStore();
     const llm = new MockLlmClient();

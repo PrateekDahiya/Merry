@@ -4,6 +4,7 @@ import { LlmClient, MockLlmClient } from '../llm/client.js';
 import { ProgressTracker } from '../knowledge/progress-tracker.js';
 import { KnowledgeWriter } from '../knowledge/writer.js';
 import { TonyMonitor } from '../monitoring/monitor.js';
+import { ZoroWorkQueue } from '../knowledge/work-queue.js';
 
 export interface ZoroOptions {
   knowledgeDir: string;
@@ -31,7 +32,7 @@ interface GitHubTreeItem {
 }
 
 const SKIP_PATHS = /node_modules|\.git|dist|coverage|\.next|\.cache|__pycache__|\.min\.|package-lock|yarn\.lock|pnpm-lock|\.png|\.jpg|\.jpeg|\.gif|\.ico|\.svg|\.woff|\.ttf|\.eot|\.map$/i;
-const PRIORITY_FILES = /readme\.md|package\.json|index\.(ts|js|py|go|rs|java)|app\.(ts|js|py)|main\.(ts|js|py|go|rs)/i;
+// File priority is now handled by ZoroWorkQueue.priorityFor()
 const MAX_FILE_BYTES = 60_000;
 
 const SUMMARISE_SYSTEM = `You are Zoro — Roronoa Zoro, the "Pirate Hunter", swordsman of the Straw Hat Pirates. In this system you build the knowledge base.
@@ -348,12 +349,8 @@ Examples: "write fibonacci in python" → "fibonacci algorithm"
       .filter(item => (item.size ?? 0) < MAX_FILE_BYTES)
       .map(item => item.path);
 
-    // Priority files first so high-value context lands in knowledge base quickly
-    files.sort((a, b) => {
-      const pa = PRIORITY_FILES.test(a) ? 0 : 1;
-      const pb = PRIORITY_FILES.test(b) ? 0 : 1;
-      return pa - pb;
-    });
+    // Sort by priority: READMEs(1) > entry points(2) > source(3) > config(8) > other(10)
+    files.sort((a, b) => ZoroWorkQueue.priorityFor(a) - ZoroWorkQueue.priorityFor(b));
 
     return files;
   }
