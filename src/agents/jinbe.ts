@@ -15,23 +15,12 @@ import { rateLimiter } from '../middleware/rate-limiter.js';
  * He is the crew's reliable front door.
  */
 
-const ACK_MESSAGES = [
-  '🌊 Jinbe at the helm. Routing your message to Ace now.',
-  '🌊 With honour — this reaches the crew right away.',
-  '🌊 Steady course set. The crew will handle this.',
-  '🌊 Your message is received. Setting sail for an answer.',
-  '🌊 Consider it done. Jinbe never leaves a crewmate without guidance.',
-];
-
 export class JinbeAgent extends BaseAgent {
   private readonly processedMessages = new Set<string>();
-  private readonly acknowledgmentText: string;
-  private ackIndex = 0;
   private readonly writer?: KnowledgeWriter;
 
   constructor(private readonly options: JinbeOptions) {
     super('jinbe-primary', 'jinbe');
-    this.acknowledgmentText = options.acknowledgmentText ?? '';
     if (options.knowledgeDir) {
       this.writer = new KnowledgeWriter(options.knowledgeDir);
     }
@@ -120,12 +109,8 @@ export class JinbeAgent extends BaseAgent {
   }
 
   async acknowledge(message: TelegramMessageMeta): Promise<void> {
+    // Just send a typing indicator — Ace's handoff message is the user-visible ack
     await this.options.client.sendChatAction(message.chatId, 'typing');
-
-    const ack = this.acknowledgmentText || this.nextAck();
-    await this.options.client.sendMessage(message.chatId, ack, {
-      replyToMessageId: message.messageId,
-    });
   }
 
   async sendFinalResponse(chatId: number, response: string, replyToMessageId?: number): Promise<void> {
@@ -136,12 +121,6 @@ export class JinbeAgent extends BaseAgent {
         replyToMessageId: index === 0 ? replyToMessageId : undefined,
       });
     }
-  }
-
-  private nextAck(): string {
-    const msg = ACK_MESSAGES[this.ackIndex % ACK_MESSAGES.length]!;
-    this.ackIndex++;
-    return msg;
   }
 
   private async createInitialProfile(message: TelegramMessageMeta): Promise<void> {

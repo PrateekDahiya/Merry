@@ -82,11 +82,9 @@ describe('JinbeAgent', () => {
     expect(task?.chatId).toBe('100');
     expect(dispatcher.tasks).toHaveLength(1);
     expect(client.chatActions).toEqual([{ chatId: 100, action: 'typing' }]);
-    // Jinbe now cycles through One Piece acknowledgment messages
-    expect(client.sentMessages[0]?.chatId).toBe(100);
-    expect(client.sentMessages[0]?.text).toBeTruthy();
-    expect(client.sentMessages[0]?.replyToMessageId).toBe(200);
-    expect(client.sentMessages[1]).toEqual({
+    // Jinbe no longer sends an ack text — Ace's handoff message serves as the ack.
+    // Jinbe only sends the final response.
+    expect(client.sentMessages[0]).toEqual({
       chatId: 100,
       text: 'Final response',
       replyToMessageId: 200,
