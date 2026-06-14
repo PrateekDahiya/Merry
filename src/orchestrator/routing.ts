@@ -112,6 +112,25 @@ async function classifyWithLlm(request: string, llm: LlmClient): Promise<'sanji'
   }
 }
 
+// ── Casual greeting detection (bypass LLM classifier for pure greetings) ─────
+
+const GREETING_WORDS = new Set([
+  'hello','hi','hey','howdy','yo','sup','hiya','good','bye','yohoho','nakama','super',
+  'morning','evening','night','afternoon',
+]);
+const CREW_NAMES_SET = new Set([
+  'ace','jinbe','nami','robin','sanji','zoro','tony','brook','franky','luffy','chopper',
+]);
+
+function isCasualGreeting(request: string): boolean {
+  const trimmed = request.trim();
+  if (trimmed.length > 40) return false;
+  const words = trimmed.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  if (words.length > 5) return false;
+  const nonGreeting = words.filter(w => !GREETING_WORDS.has(w) && !CREW_NAMES_SET.has(w));
+  return nonGreeting.length === 0;
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -129,6 +148,16 @@ export async function selectSpecialistAgent(
 ): Promise<RoutingDecision> {
   const respondAs = detectAddressedAgent(userRequest) ?? undefined;
   const normalized = userRequest.toLowerCase();
+
+  // Short-circuit: pure greetings always go to Robin — don't waste an LLM call
+  if (isCasualGreeting(userRequest)) {
+    return {
+      agent: 'robin',
+      confidence: 0.99,
+      reason: 'Casual greeting — no specialist needed.',
+      respondAs,
+    };
+  }
 
   if (llm) {
     const llmAgent = await classifyWithLlm(userRequest, llm);
