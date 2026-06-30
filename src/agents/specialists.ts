@@ -3,6 +3,7 @@ import { TaskEnvelope } from '../types/messages.js';
 import { LlmClient } from '../llm/client.js';
 import { createChildLogger } from '../logging/logger.js';
 import type { AgentVoice } from '../telegram/notifier.js';
+import { compressChain, estimateTokens } from '../utils/token-budget.js';
 
 const logger = createChildLogger({ component: 'specialists' });
 
@@ -201,7 +202,16 @@ function buildFromChain(task: TaskEnvelope, contextSummary: string | undefined):
     : null;
 
   if (chain && chain.length > 0) {
-    const base = chain.map(m => `[${m.agent}]: ${m.content}`).join('\n\n');
+    const compressed = compressChain(chain);
+    const originalLen = chain.reduce((s, e) => s + e.agent.length + e.content.length, 0);
+    const compressedLen = compressed.reduce((s, e) => s + e.agent.length + e.content.length, 0);
+    if (compressedLen < originalLen) {
+      logger.debug(
+        { originalTokens: Math.ceil(originalLen / 4), compressedTokens: Math.ceil(compressedLen / 4) },
+        'Context chain compressed to fit 16k token window',
+      );
+    }
+    const base = compressed.map(m => `[${m.agent}]: ${m.content}`).join('\n\n');
     return subtask ? `${subtask}\n\n${base}` : base;
   }
   // Fallback for tests / mock mode
