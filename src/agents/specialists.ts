@@ -3,7 +3,7 @@ import { TaskEnvelope } from '../types/messages.js';
 import { LlmClient } from '../llm/client.js';
 import { createChildLogger } from '../logging/logger.js';
 import type { AgentVoice } from '../telegram/notifier.js';
-import { compressChain, estimateTokens } from '../utils/token-budget.js';
+import { compressChain } from '../utils/token-budget.js';
 
 const logger = createChildLogger({ component: 'specialists' });
 
